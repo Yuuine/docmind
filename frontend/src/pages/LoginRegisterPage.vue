@@ -1,94 +1,119 @@
 <template>
   <div class="login-register-page">
-    <div class="background"></div>
-    
-    <div class="container">
-      <div class="card">
-        <div class="header">
-          <h1>DocMind RAG</h1>
-          <p>智能文档检索与问答系统</p>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <div class="nav-brand" @click="goToHome">
+        <div class="logo">
+          <Icon name="logo" :size="28" />
         </div>
-        
+        <span class="brand-text">DocMind</span>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="card" :class="{ shake: isShaking }">
+        <div class="header">
+          <h1>{{ isLoginMode ? '欢迎回来' : '创建账号' }}</h1>
+          <p>{{ isLoginMode ? '登录以继续您的文档探索之旅' : '开始您的智能文档检索体验' }}</p>
+        </div>
+
         <div class="tabs">
           <button :class="{ active: isLoginMode }" @click="switchToLogin">登录</button>
           <button :class="{ active: !isLoginMode }" @click="switchToRegister">注册</button>
         </div>
-        
-        <form v-if="isLoginMode" @submit.prevent="handleLogin" class="form">
-          <div class="form-group">
-            <label>登录标识</label>
-            <input v-model="loginForm.username" type="text" placeholder="用户名/邮箱/手机号" />
-            <span v-if="loginErrors.username" class="error">{{ loginErrors.username }}</span>
-          </div>
-          
-          <div class="form-group">
-            <label>密码</label>
-            <div class="password-input">
-              <input v-model="loginForm.password" :type="showLoginPassword ? 'text' : 'password'" placeholder="请输入密码" />
-              <button type="button" @click="showLoginPassword = !showLoginPassword">
-                {{ showLoginPassword ? '👁️' : '🙈' }}
+
+        <div class="form-wrapper">
+          <transition name="form-switch" mode="out-in">
+            <form v-if="isLoginMode" key="login" @submit.prevent="handleLogin" class="form">
+              <div class="form-group">
+                <label>登录标识</label>
+                <div class="input-wrapper">
+                  <Icon name="user" :size="16" class="input-icon" />
+                  <input v-model="loginForm.username" type="text" placeholder="用户名/邮箱/手机号" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>密码</label>
+                <div class="input-wrapper">
+                  <Icon name="lock" :size="16" class="input-icon" />
+                  <input v-model="loginForm.password" :type="showLoginPassword ? 'text' : 'password'" placeholder="请输入密码" />
+                  <button type="button" @click="showLoginPassword = !showLoginPassword" class="eye-btn">
+                    <Icon :name="showLoginPassword ? 'eyeOff' : 'eye'" :size="16" />
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" :disabled="isLoading" class="submit-btn">
+                {{ isLoading ? '登录中...' : '登录' }}
               </button>
-            </div>
-            <span v-if="loginErrors.password" class="error">{{ loginErrors.password }}</span>
-          </div>
-          
-          <div v-if="loginError" class="form-error">{{ loginError }}</div>
-          
-          <button type="submit" :disabled="isLoading" class="submit-btn">
-            {{ isLoading ? '登录中...' : '登录' }}
-          </button>
-        </form>
-        
-        <form v-else @submit.prevent="handleRegister" class="form">
-          <div class="form-group">
-            <label>用户名 <span class="required">*</span></label>
-            <input v-model="registerForm.username" type="text" placeholder="请输入用户名" />
-            <span v-if="registerErrors.username" class="error">{{ registerErrors.username }}</span>
-          </div>
-          
-          <div class="form-group">
-            <label>邮箱</label>
-            <input v-model="registerForm.email" type="email" placeholder="请输入邮箱（选填）" />
-            <span v-if="registerErrors.email" class="error">{{ registerErrors.email }}</span>
-          </div>
-          
-          <div class="form-group">
-            <label>手机号</label>
-            <input v-model="registerForm.phone" type="tel" placeholder="请输入手机号（选填）" />
-            <span v-if="registerErrors.phone" class="error">{{ registerErrors.phone }}</span>
-          </div>
-          
-          <div class="form-group">
-            <label>密码 <span class="required">*</span></label>
-            <div class="password-input">
-              <input v-model="registerForm.password" :type="showRegisterPassword ? 'text' : 'password'" placeholder="请输入密码" />
-              <button type="button" @click="showRegisterPassword = !showRegisterPassword">
-                {{ showRegisterPassword ? '👁️' : '🙈' }}
+            </form>
+
+            <form v-else key="register" @submit.prevent="handleRegister" class="form">
+              <div class="form-group">
+                <label>用户名 <span class="required">*</span></label>
+                <div class="input-wrapper">
+                  <Icon name="user" :size="16" class="input-icon" />
+                  <input v-model="registerForm.username" type="text" placeholder="请输入用户名" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group half">
+                  <label>邮箱</label>
+                  <div class="input-wrapper">
+                    <Icon name="mail" :size="16" class="input-icon" />
+                    <input v-model="registerForm.email" type="email" placeholder="选填" />
+                  </div>
+                </div>
+
+                <div class="form-group half">
+                  <label>手机号</label>
+                  <div class="input-wrapper">
+                    <Icon name="phone" :size="16" class="input-icon" />
+                    <input v-model="registerForm.phone" type="tel" placeholder="选填" />
+                  </div>
+                </div>
+              </div>
+
+              <p class="hint">邮箱和手机号至少填写一项</p>
+
+              <div class="form-row">
+                <div class="form-group half">
+                  <label>密码 <span class="required">*</span></label>
+                  <div class="input-wrapper">
+                    <Icon name="lock" :size="16" class="input-icon" />
+                    <input v-model="registerForm.password" :type="showRegisterPassword ? 'text' : 'password'" placeholder="请输入密码" />
+                    <button type="button" @click="showRegisterPassword = !showRegisterPassword" class="eye-btn">
+                      <Icon :name="showRegisterPassword ? 'eyeOff' : 'eye'" :size="16" />
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-group half">
+                  <label>确认密码 <span class="required">*</span></label>
+                  <div class="input-wrapper">
+                    <Icon name="lock" :size="16" class="input-icon" />
+                    <input v-model="registerForm.confirmPassword" :type="showRegisterConfirmPassword ? 'text' : 'password'" placeholder="请再次输入密码" />
+                    <button type="button" @click="showRegisterConfirmPassword = !showRegisterConfirmPassword" class="eye-btn">
+                      <Icon :name="showRegisterConfirmPassword ? 'eyeOff' : 'eye'" :size="16" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" :disabled="isLoading" class="submit-btn">
+                {{ isLoading ? '注册中...' : '创建账号' }}
               </button>
-            </div>
-            <span v-if="registerErrors.password" class="error">{{ registerErrors.password }}</span>
-          </div>
-          
-          <div class="form-group">
-            <label>确认密码 <span class="required">*</span></label>
-            <div class="password-input">
-              <input v-model="registerForm.confirmPassword" :type="showRegisterConfirmPassword ? 'text' : 'password'" placeholder="请再次输入密码" />
-              <button type="button" @click="showRegisterConfirmPassword = !showRegisterConfirmPassword">
-                {{ showRegisterConfirmPassword ? '👁️' : '🙈' }}
-              </button>
-            </div>
-            <span v-if="registerErrors.confirmPassword" class="error">{{ registerErrors.confirmPassword }}</span>
-          </div>
-          
-          <p class="hint">邮箱和手机号至少填写一项</p>
-          
-          <div v-if="registerError" class="form-error">{{ registerError }}</div>
-          
-          <button type="submit" :disabled="isLoading" class="submit-btn">
-            {{ isLoading ? '注册中...' : '注册' }}
-          </button>
-        </form>
+            </form>
+          </transition>
+        </div>
       </div>
+    </div>
+
+    <!-- 背景装饰 -->
+    <div class="bg-decoration">
+      <div class="bg-grid"></div>
     </div>
   </div>
 </template>
@@ -97,20 +122,26 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useToastStore } from '@/stores/toast'
+import { Icon } from '@/components/icons'
 
 const router = useRouter()
 const userStore = useUserStore()
+const toastStore = useToastStore()
 
 const isLoginMode = ref(true)
-
 const isLoading = ref(false)
-
-const loginError = ref('')
-const registerError = ref('')
-
+const isShaking = ref(false)
 const showLoginPassword = ref(false)
 const showRegisterPassword = ref(false)
 const showRegisterConfirmPassword = ref(false)
+
+const triggerShake = () => {
+  isShaking.value = true
+  setTimeout(() => {
+    isShaking.value = false
+  }, 500)
+}
 
 const loginForm = reactive({
   username: '',
@@ -138,85 +169,136 @@ const registerErrors = reactive({
   confirmPassword: ''
 })
 
+const goToHome = () => {
+  router.push('/')
+}
+
 const switchToLogin = () => {
   isLoginMode.value = true
-  loginError.value = ''
-  registerError.value = ''
+  clearErrors()
 }
 
 const switchToRegister = () => {
   isLoginMode.value = false
-  loginError.value = ''
-  registerError.value = ''
+  clearErrors()
 }
 
-const validateLoginForm = () => {
+const clearErrors = () => {
+  loginErrors.username = ''
+  loginErrors.password = ''
+  registerErrors.username = ''
+  registerErrors.email = ''
+  registerErrors.phone = ''
+  registerErrors.password = ''
+  registerErrors.confirmPassword = ''
+}
+
+const validateLoginForm = (): boolean => {
   let valid = true
   loginErrors.username = ''
   loginErrors.password = ''
-  
+
   if (!loginForm.username.trim()) {
+    toastStore.error('请输入登录标识')
     loginErrors.username = '请输入登录标识'
     valid = false
   }
-  
+
   if (!loginForm.password) {
+    toastStore.error('请输入密码')
     loginErrors.password = '请输入密码'
     valid = false
   }
-  
+
+  if (!valid) {
+    triggerShake()
+  }
+
   return valid
 }
 
-const validateRegisterForm = () => {
+const validateRegisterForm = (): boolean => {
   let valid = true
   Object.keys(registerErrors).forEach(key => {
     registerErrors[key as keyof typeof registerErrors] = ''
   })
-  
+
   if (!registerForm.username.trim()) {
+    toastStore.error('请输入用户名')
     registerErrors.username = '请输入用户名'
     valid = false
   }
-  
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const phoneRegex = /^1[3-9]\d{9}$/
+
+  if (registerForm.email.trim() && !emailRegex.test(registerForm.email)) {
+    toastStore.error('邮箱格式不正确')
+    registerErrors.email = '邮箱格式不正确'
+    valid = false
+  }
+
+  if (registerForm.phone.trim()) {
+    if (!/^\d+$/.test(registerForm.phone)) {
+      toastStore.error('手机号只能包含数字')
+      registerErrors.phone = '手机号只能包含数字'
+      valid = false
+    } else if (!phoneRegex.test(registerForm.phone)) {
+      toastStore.error('请输入正确的11位手机号')
+      registerErrors.phone = '请输入正确的11位手机号'
+      valid = false
+    }
+  }
+
   if (!registerForm.email.trim() && !registerForm.phone.trim()) {
+    toastStore.error('邮箱和手机号至少填写一项')
     registerErrors.email = '邮箱和手机号至少填写一项'
     valid = false
   }
-  
+
   if (!registerForm.password) {
+    toastStore.error('请输入密码')
     registerErrors.password = '请输入密码'
     valid = false
   } else if (registerForm.password.length < 6) {
+    toastStore.error('密码至少6位')
     registerErrors.password = '密码至少6位'
     valid = false
   }
-  
+
   if (!registerForm.confirmPassword) {
+    toastStore.error('请确认密码')
     registerErrors.confirmPassword = '请确认密码'
     valid = false
   } else if (registerForm.password !== registerForm.confirmPassword) {
+    toastStore.error('两次输入的密码不一致')
     registerErrors.confirmPassword = '两次输入的密码不一致'
     valid = false
   }
-  
+
+  if (!valid) {
+    triggerShake()
+  }
+
   return valid
 }
 
 const handleLogin = async () => {
   if (!validateLoginForm()) return
-  
+
   isLoading.value = true
-  loginError.value = ''
-  
+
   try {
     await userStore.login({
       username: loginForm.username,
       password: loginForm.password
     })
-    router.push('/')
+    toastStore.success('登录成功')
+    router.push('/chat')
   } catch (error: any) {
-    loginError.value = error.response?.data?.message || '登录失败，请稍后重试'
+    const message = error.response?.data?.message || '登录失败，请稍后重试'
+    toastStore.error(message, 4000)
+    triggerShake()
   } finally {
     isLoading.value = false
   }
@@ -224,10 +306,9 @@ const handleLogin = async () => {
 
 const handleRegister = async () => {
   if (!validateRegisterForm()) return
-  
+
   isLoading.value = true
-  registerError.value = ''
-  
+
   try {
     await userStore.register({
       username: registerForm.username,
@@ -235,9 +316,12 @@ const handleRegister = async () => {
       email: registerForm.email || undefined,
       phone: registerForm.phone || undefined
     })
-    router.push('/')
+    toastStore.success('注册成功')
+    router.push('/chat')
   } catch (error: any) {
-    registerError.value = error.response?.data?.message || '注册失败，请稍后重试'
+    const message = error.response?.data?.message || '注册失败，请稍后重试'
+    toastStore.error(message, 4000)
+    triggerShake()
   } finally {
     isLoading.value = false
   }
@@ -245,94 +329,146 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
+/* 引入优雅字体 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
 .login-register-page {
   min-height: 100vh;
+  background: #faf9f7;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-.background {
-  position: absolute;
+/* 导航栏 */
+.navbar {
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
-  background: 
-    radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%);
-}
-
-.container {
-  position: relative;
-  z-index: 1;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 48px;
+  max-width: 1200px;
+  margin: 0 auto;
   width: 100%;
-  max-width: 440px;
-  padding: 20px;
 }
 
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.nav-brand:hover {
+  opacity: 0.7;
+}
+
+.logo {
+  width: 28px;
+  height: 28px;
+  color: #1a1a1a;
+}
+
+.brand-text {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  letter-spacing: -0.02em;
+  font-family: 'Inter', sans-serif;
+}
+
+/* 主容器 */
+.container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px 40px;
+  position: relative;
+  z-index: 10;
+}
+
+/* 卡片 */
 .card {
   background: white;
   border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 36px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f0f0f0;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .header h1 {
   font-size: 28px;
-  font-weight: 700;
-  color: #1a202c;
+  font-weight: 500;
+  color: #1a1a1a;
   margin-bottom: 8px;
+  font-family: 'Noto Serif SC', serif;
+  letter-spacing: -0.02em;
 }
 
 .header p {
   font-size: 14px;
-  color: #718096;
+  color: #888;
+  font-weight: 400;
 }
 
+/* 标签页 */
 .tabs {
   display: flex;
-  margin-bottom: 32px;
-  background: #f7fafc;
-  border-radius: 8px;
+  margin-bottom: 24px;
+  background: #f8f8f8;
+  border-radius: 10px;
   padding: 4px;
 }
 
 .tabs button {
   flex: 1;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border: none;
   background: transparent;
   font-size: 14px;
   font-weight: 500;
-  color: #4a5568;
+  color: #888;
   cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  border-radius: 8px;
+  transition: all 0.25s ease;
+  font-family: 'Inter', sans-serif;
 }
 
 .tabs button:hover {
-  color: #2d3748;
+  color: #555;
 }
 
 .tabs button.active {
   background: white;
-  color: #667eea;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  color: #1a1a1a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
+/* 表单容器 */
+.form-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 表单 */
 .form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .form-group {
@@ -341,28 +477,59 @@ const handleRegister = async () => {
   gap: 6px;
 }
 
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group.half {
+  flex: 1;
+}
+
 .form-group label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #2d3748;
+  color: #444;
+  font-family: 'Inter', sans-serif;
 }
 
 .form-group .required {
-  color: #e53e3e;
+  color: #d97706;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 12px;
+  color: #999;
+  pointer-events: none;
 }
 
 .form-group input {
-  padding: 12px 16px;
-  border: 2px solid #e2e8f0;
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  border: 1.5px solid #e8e8e8;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 14px;
   transition: all 0.2s ease;
   outline: none;
+  background: #fafafa;
+  font-family: 'Inter', sans-serif;
+  color: #333;
 }
 
 .form-group input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #1a1a1a;
+  background: white;
+}
+
+.form-group input::placeholder {
+  color: #aaa;
 }
 
 .password-input {
@@ -372,55 +539,54 @@ const handleRegister = async () => {
 }
 
 .password-input input {
-  flex: 1;
-  padding-right: 48px;
+  padding-right: 40px;
 }
 
-.password-input button {
+.eye-btn {
   position: absolute;
-  right: 12px;
+  right: 10px;
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 18px;
   padding: 4px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
 }
 
-.error {
-  font-size: 12px;
-  color: #e53e3e;
+.eye-btn:hover {
+  color: #666;
 }
 
 .hint {
-  font-size: 12px;
-  color: #718096;
-  margin-top: -12px;
+  font-size: 11px;
+  color: #999;
+  margin-top: -10px;
+  margin-bottom: -4px;
+  font-weight: 400;
 }
 
-.form-error {
-  padding: 12px;
-  background: #fff5f5;
-  border: 1px solid #feb2b2;
-  border-radius: 8px;
-  color: #c53030;
-  font-size: 14px;
-}
-
+/* 提交按钮 */
 .submit-btn {
-  padding: 14px 24px;
+  padding: 12px 24px;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: white;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #1a1a1a;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
+  font-family: 'Inter', sans-serif;
+  margin-top: 4px;
 }
 
 .submit-btn:hover:not(:disabled) {
+  background: #333;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .submit-btn:active:not(:disabled) {
@@ -428,17 +594,96 @@ const handleRegister = async () => {
 }
 
 .submit-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
+/* 卡片抖动动画 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
+  20%, 40%, 60%, 80% { transform: translateX(6px); }
+}
+
+.card.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* 表单切换动画 */
+.form-switch-enter-active,
+.form-switch-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-switch-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.form-switch-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* 隐藏浏览器原生的密码显示/隐藏按钮 */
+.form-group input[type="password"]::-ms-reveal {
+  display: none;
+}
+
+.form-group input[type="password"]::-ms-clear {
+  display: none;
+}
+
+.form-group input[type="password"]::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}
+
+/* 背景装饰 */
+.bg-decoration {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.bg-grid {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 600px;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+}
+
+/* 响应式 */
 @media (max-width: 480px) {
+  .navbar {
+    padding: 16px 20px;
+  }
+
   .card {
     padding: 28px 20px;
   }
-  
+
   .header h1 {
     font-size: 24px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 16px;
   }
 }
 </style>

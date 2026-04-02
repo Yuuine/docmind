@@ -19,6 +19,7 @@ export interface User {
   phone?: string
   avatarUrl?: string
   createdAt: string
+  updatedAt: string
 }
 
 export interface Document {

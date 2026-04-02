@@ -23,10 +23,7 @@ public class UserController {
             action = AuditAction.USER_REGISTER,
             resourceType = "User",
             describe = "用户注册",
-            logRequest = true,
-            logResponse = true,
-            sensitiveParams = {"password"},
-            async = true
+            sensitiveParams = {"password"}
     )
     @PostMapping("/register")
     public Result<UserResponse> register(@RequestBody UserRegisterRequest request) {
@@ -38,10 +35,7 @@ public class UserController {
             resourceType = "User",
             resourceIdParam = "request",
             describe = "用户登录",
-            logRequest = true,
-            logResponse = true,
-            sensitiveParams = {"password"},
-            async = true
+            sensitiveParams = {"password"}
     )
     @PostMapping("/login")
     public Result<UserResponse> login(@Valid @RequestBody UserLoginRequest request) {
@@ -58,10 +52,7 @@ public class UserController {
             resourceType = "User",
             resourceIdParam = "userId",
             describe = "更新用户资料",
-            logRequest = true,
-            logResponse = true,
-            sensitiveParams = {"oldPassword", "newPassword"},
-            async = true
+            sensitiveParams = {"oldPassword", "newPassword"}
     )
     @PutMapping("/profile")
     public Result<UserResponse> updateProfile(@RequestParam Long userId, @RequestBody UserUpdateRequest request) {
@@ -74,8 +65,7 @@ public class UserController {
             resourceIdFromPath = "userId",
             describe = "删除用户",
             logRequest = false,
-            logResponse = false,
-            async = true
+            logResponse = false
     )
     @DeleteMapping("/{userId}")
     public Result<Void> deleteUser(@PathVariable Long userId) {

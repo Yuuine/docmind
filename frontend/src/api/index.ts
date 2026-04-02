@@ -20,7 +20,7 @@ export const userApi = {
   register: (data: { username: string; password: string; email?: string; phone?: string }) =>
     api.post<ApiResponse<User>>('/users/register', data),
   login: (data: { username: string; password: string }) =>
-    api.post<ApiResponse<{ userId: number; username: string; avatarUrl?: string }>>('/users/login', data),
+    api.post<ApiResponse<User>>('/users/login', data),
   getProfile: () => api.get<ApiResponse<User>>('/users/profile'),
   updateProfile: (data: { email?: string; phone?: string; avatarUrl?: string }) =>
     api.put<ApiResponse<User>>('/users/profile', data)
