@@ -1,5 +1,6 @@
 package yuuine.docmind.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import yuuine.docmind.common.model.Result;
@@ -43,7 +44,7 @@ public class UserController {
             async = true
     )
     @PostMapping("/login")
-    public Result<UserResponse> login(@RequestBody UserLoginRequest request) {
+    public Result<UserResponse> login(@Valid @RequestBody UserLoginRequest request) {
         return Result.success(userService.login(request));
     }
 

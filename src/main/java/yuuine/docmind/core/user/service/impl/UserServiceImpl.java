@@ -42,19 +42,30 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse login(UserLoginRequest request) {
-        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(User::getUsername, request.getUsername());
-        User user = userRepository.selectOne(queryWrapper);
+        String identifier = request.getUsername().trim();
+        User user = findByIdentifier(identifier);
 
-        if (user == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new BusinessException(ErrorCode.INVALID_PASSWORD);
+        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
         return toUserResponse(user);
+    }
+
+    private User findByIdentifier(String identifier) {
+        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(User::getUsername, identifier);
+        User user = userRepository.selectOne(queryWrapper);
+        if (user != null) return user;
+
+        queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(User::getEmail, identifier);
+        user = userRepository.selectOne(queryWrapper);
+        if (user != null) return user;
+
+        queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(User::getPhone, identifier);
+        return userRepository.selectOne(queryWrapper);
     }
 
     @Override
