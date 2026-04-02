@@ -12,7 +12,14 @@ public enum ErrorCode {
     VECTOR_STORE_ERROR("VECTOR_STORE_ERROR", "向量存储错误"),
     LLM_ERROR("LLM_ERROR", "LLM 调用错误"),
     RERANK_ERROR("RERANK_ERROR", "重排序错误"),
-    EMBEDDING_ERROR("EMBEDDING_ERROR", "向量化错误");
+    EMBEDDING_ERROR("EMBEDDING_ERROR", "向量化错误"),
+    USER_NOT_FOUND("USER_NOT_FOUND", "用户不存在"),
+    USER_ALREADY_EXISTS("USER_ALREADY_EXISTS", "用户已存在"),
+    INVALID_PASSWORD("INVALID_PASSWORD", "密码错误"),
+    INVALID_CREDENTIALS("INVALID_CREDENTIALS", "无效的凭据"),
+    UNAUTHORIZED("UNAUTHORIZED", "未授权"),
+    FORBIDDEN("FORBIDDEN", "禁止访问"),
+    SESSION_EXPIRED("SESSION_EXPIRED", "会话已过期");
 
     private final String code;
     private final String message;

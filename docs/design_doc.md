@@ -5,76 +5,76 @@
 ## 数据库设计
 
 ### users 表
-| 字段 | 类型 | 说明 | 约束 |
-|------|------|------|------|
-| id | BIGINT | 主键 | AUTO_INCREMENT |
-| username | VARCHAR(50) | 用户名 | NOT NULL, UNIQUE |
-| password_hash | VARCHAR(255) | 密码哈希 | NOT NULL |
-| email | VARCHAR(100) | 邮箱 | UNIQUE |
-| phone | VARCHAR(20) | 手机号 | UNIQUE |
-| avatar_url | VARCHAR(500) | 头像URL | |
-| created_at | DATETIME | 创建时间 | NOT NULL |
-| updated_at | DATETIME | 更新时间 | NOT NULL |
+| 字段            | 类型           | 说明    | 约束               |
+|---------------|--------------|-------|------------------|
+| id            | BIGINT       | 主键    | AUTO_INCREMENT   |
+| username      | VARCHAR(50)  | 用户名   | NOT NULL, UNIQUE |
+| password_hash | VARCHAR(255) | 密码哈希  | NOT NULL         |
+| email         | VARCHAR(100) | 邮箱    | UNIQUE           |
+| phone         | VARCHAR(20)  | 手机号   | UNIQUE           |
+| avatar_url    | VARCHAR(500) | 头像URL |                  |
+| created_at    | DATETIME     | 创建时间  | NOT NULL         |
+| updated_at    | DATETIME     | 更新时间  | NOT NULL         |
 
 ### documents 表
-| 字段 | 类型 | 说明 | 约束 |
-|------|------|------|------|
-| id | BIGINT | 主键 | AUTO_INCREMENT |
-| user_id | BIGINT | 用户ID | NOT NULL, FK |
-| file_id | VARCHAR(64) | 文件ID | NOT NULL |
-| filename | VARCHAR(255) | 文件名 | NOT NULL |
-| content_type | VARCHAR(100) | 内容类型 | NOT NULL |
-| file_size | BIGINT | 文件大小(字节) | NOT NULL |
-| file_md5 | VARCHAR(32) | 文件MD5 | |
-| storage_path | VARCHAR(500) | 存储路径 | NOT NULL |
-| status | VARCHAR(20) | 状态 | NOT NULL |
-| error_message | TEXT | 错误信息 | |
-| created_at | DATETIME | 创建时间 | NOT NULL |
-| updated_at | DATETIME | 更新时间 | NOT NULL |
+| 字段            | 类型           | 说明       | 约束             |
+|---------------|--------------|----------|----------------|
+| id            | BIGINT       | 主键       | AUTO_INCREMENT |
+| user_id       | BIGINT       | 用户ID     | NOT NULL, FK   |
+| file_id       | VARCHAR(64)  | 文件ID     | NOT NULL       |
+| filename      | VARCHAR(255) | 文件名      | NOT NULL       |
+| content_type  | VARCHAR(100) | 内容类型     | NOT NULL       |
+| file_size     | BIGINT       | 文件大小(字节) | NOT NULL       |
+| file_md5      | VARCHAR(32)  | 文件MD5    |                |
+| storage_path  | VARCHAR(500) | 存储路径     | NOT NULL       |
+| status        | VARCHAR(20)  | 状态       | NOT NULL       |
+| error_message | TEXT         | 错误信息     |                |
+| created_at    | DATETIME     | 创建时间     | NOT NULL       |
+| updated_at    | DATETIME     | 更新时间     | NOT NULL       |
 
 ### document_chunks 表
-| 字段 | 类型 | 说明 | 约束 |
-|------|------|------|------|
-| id | BIGINT | 主键 | AUTO_INCREMENT |
-| document_id | BIGINT | 文档ID | NOT NULL, FK |
-| chunk_index | INT | 分块索引 | NOT NULL |
-| content | TEXT | 分块内容 | NOT NULL |
-| embedding_id | VARCHAR(64) | 向量ID | |
-| created_at | DATETIME | 创建时间 | NOT NULL |
+| 字段           | 类型          | 说明   | 约束             |
+|--------------|-------------|------|----------------|
+| id           | BIGINT      | 主键   | AUTO_INCREMENT |
+| document_id  | BIGINT      | 文档ID | NOT NULL, FK   |
+| chunk_index  | INT         | 分块索引 | NOT NULL       |
+| content      | TEXT        | 分块内容 | NOT NULL       |
+| embedding_id | VARCHAR(64) | 向量ID |                |
+| created_at   | DATETIME    | 创建时间 | NOT NULL       |
 
 ### chat_sessions 表
-| 字段 | 类型 | 说明 | 约束 |
-|------|------|------|------|
-| id | BIGINT | 主键 | AUTO_INCREMENT |
-| user_id | BIGINT | 用户ID | NOT NULL, FK |
-| title | VARCHAR(255) | 会话标题 | |
-| created_at | DATETIME | 创建时间 | NOT NULL |
-| updated_at | DATETIME | 更新时间 | NOT NULL |
+| 字段         | 类型           | 说明   | 约束             |
+|------------|--------------|------|----------------|
+| id         | BIGINT       | 主键   | AUTO_INCREMENT |
+| user_id    | BIGINT       | 用户ID | NOT NULL, FK   |
+| title      | VARCHAR(255) | 会话标题 |                |
+| created_at | DATETIME     | 创建时间 | NOT NULL       |
+| updated_at | DATETIME     | 更新时间 | NOT NULL       |
 
 ### chat_messages 表
-| 字段 | 类型 | 说明 | 约束 |
-|------|------|------|------|
-| id | BIGINT | 主键 | AUTO_INCREMENT |
-| session_id | BIGINT | 会话ID | NOT NULL, FK |
-| role | VARCHAR(20) | 角色 | NOT NULL |
-| content | TEXT | 消息内容 | NOT NULL |
-| retrieved_docs | JSON | 检索文档 | |
-| created_at | DATETIME | 创建时间 | NOT NULL |
+| 字段             | 类型          | 说明   | 约束             |
+|----------------|-------------|------|----------------|
+| id             | BIGINT      | 主键   | AUTO_INCREMENT |
+| session_id     | BIGINT      | 会话ID | NOT NULL, FK   |
+| role           | VARCHAR(20) | 角色   | NOT NULL       |
+| content        | TEXT        | 消息内容 | NOT NULL       |
+| retrieved_docs | JSON        | 检索文档 |                |
+| created_at     | DATETIME    | 创建时间 | NOT NULL       |
 
 ### audit_logs 表
-| 字段 | 类型 | 说明 | 约束 |
-|------|------|------|------|
-| id | BIGINT | 主键 | AUTO_INCREMENT |
-| user_id | BIGINT | 用户ID | FK |
-| action | VARCHAR(50) | 操作类型 | NOT NULL |
-| resource_type | VARCHAR(50) | 资源类型 | |
-| resource_id | BIGINT | 资源ID | |
-| ip_address | VARCHAR(45) | IP地址 | |
-| user_agent | VARCHAR(500) | User-Agent | |
-| request_data | JSON | 请求数据 | |
-| response_data | JSON | 响应数据 | |
-| status | VARCHAR(20) | 状态 | NOT NULL |
-| created_at | DATETIME | 创建时间 | NOT NULL |
+| 字段            | 类型           | 说明         | 约束             |
+|---------------|--------------|------------|----------------|
+| id            | BIGINT       | 主键         | AUTO_INCREMENT |
+| user_id       | BIGINT       | 用户ID       | FK             |
+| action        | VARCHAR(50)  | 操作类型       | NOT NULL       |
+| resource_type | VARCHAR(50)  | 资源类型       |                |
+| resource_id   | BIGINT       | 资源ID       |                |
+| ip_address    | VARCHAR(45)  | IP地址       |                |
+| user_agent    | VARCHAR(500) | User-Agent |                |
+| request_data  | JSON         | 请求数据       |                |
+| response_data | JSON         | 响应数据       |                |
+| status        | VARCHAR(20)  | 状态         | NOT NULL       |
+| created_at    | DATETIME     | 创建时间       | NOT NULL       |
 
 ---
 

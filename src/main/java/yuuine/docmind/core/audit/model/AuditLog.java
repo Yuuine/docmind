@@ -29,6 +29,15 @@ public class AuditLog {
     @TableField("resource_id")
     private Long resourceId;
 
+    @TableField("http_method")
+    private String httpMethod;
+
+    @TableField("request_path")
+    private String requestPath;
+
+    @TableField("query_string")
+    private String queryString;
+
     @TableField("ip_address")
     private String ipAddress;
 
@@ -43,6 +52,21 @@ public class AuditLog {
 
     @TableField("status")
     private String status;
+
+    @TableField("error_message")
+    private String errorMessage;
+
+    @TableField("execution_time")
+    private Long executionTime;
+
+    @TableField("operation_description")
+    private String operationDescription;
+
+    @TableField("server_host")
+    private String serverHost;
+
+    @TableField("trace_id")
+    private String traceId;
 
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
