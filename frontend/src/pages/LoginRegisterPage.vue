@@ -329,16 +329,12 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-/* 引入优雅字体 */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-
 .login-register-page {
   min-height: 100vh;
   background: #faf9f7;
   display: flex;
   flex-direction: column;
   position: relative;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* 导航栏 */
@@ -380,7 +376,6 @@ const handleRegister = async () => {
   font-weight: 600;
   color: #1a1a1a;
   letter-spacing: -0.02em;
-  font-family: 'Inter', sans-serif;
 }
 
 /* 主容器 */
@@ -412,10 +407,9 @@ const handleRegister = async () => {
 
 .header h1 {
   font-size: 28px;
-  font-weight: 500;
+  font-weight: 600;
   color: #1a1a1a;
   margin-bottom: 8px;
-  font-family: 'Noto Serif SC', serif;
   letter-spacing: -0.02em;
 }
 
@@ -445,7 +439,6 @@ const handleRegister = async () => {
   cursor: pointer;
   border-radius: 8px;
   transition: all 0.25s ease;
-  font-family: 'Inter', sans-serif;
 }
 
 .tabs button:hover {
@@ -490,7 +483,6 @@ const handleRegister = async () => {
   font-size: 13px;
   font-weight: 500;
   color: #444;
-  font-family: 'Inter', sans-serif;
 }
 
 .form-group .required {
@@ -519,7 +511,6 @@ const handleRegister = async () => {
   transition: all 0.2s ease;
   outline: none;
   background: #fafafa;
-  font-family: 'Inter', sans-serif;
   color: #333;
 }
 
@@ -579,7 +570,6 @@ const handleRegister = async () => {
   background: #1a1a1a;
   cursor: pointer;
   transition: all 0.25s ease;
-  font-family: 'Inter', sans-serif;
   margin-top: 4px;
 }
 

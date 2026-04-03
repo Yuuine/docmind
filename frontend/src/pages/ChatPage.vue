@@ -49,14 +49,28 @@
         </div>
       </div>
 
-      <div class="user-info">
-        <div class="user-avatar">
+      <div class="user-info" ref="userInfoRef">
+        <div class="user-avatar" @click.stop="toggleUserMenu">
           <Icon name="user" :size="20" />
         </div>
-        <span class="username">{{ userStore.user?.username }}</span>
-        <button class="logout-btn" @click="handleLogout">
-          <Icon name="logout" :size="18" />
+        <span class="username" @click.stop="toggleUserMenu">{{ userStore.user?.username }}</span>
+        <button class="more-btn" @click.stop="toggleUserMenu">
+          <Icon name="more" :size="18" />
         </button>
+
+        <transition name="menu-fade">
+          <div v-if="showUserMenu" class="user-menu">
+            <div class="menu-item" @click="openSettings">
+              <Icon name="settings" :size="16" />
+              <span>系统设置</span>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-item logout-item" @click="handleLogout">
+              <Icon name="logout" :size="16" />
+              <span>退出登录</span>
+            </div>
+          </div>
+        </transition>
       </div>
     </div>
 
@@ -152,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, nextTick, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
@@ -169,20 +183,15 @@ const toastStore = useToastStore()
 const messagesContainer = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
 const titleInputRef = ref<HTMLInputElement>()
+const userInfoRef = ref<HTMLElement>()
 const inputMessage = ref('')
 const uploadProgress = ref(0)
 const uploadedFiles = ref<Document[]>([])
 const editingSessionId = ref<number | null>(null)
 const editingTitle = ref('')
+const showUserMenu = ref(false)
 
 const userId = userStore.user?.id
-
-onMounted(() => {
-  if (userId) {
-    chatStore.setUserId(userId)
-    chatStore.loadSessions()
-  }
-})
 
 watch(() => chatStore.messages, () => {
   scrollToBottom()
@@ -230,9 +239,37 @@ async function handleFileSelect(event: Event) {
 }
 
 function handleLogout() {
+  showUserMenu.value = false
   userStore.logout()
   router.push('/')
 }
+
+function toggleUserMenu() {
+  showUserMenu.value = !showUserMenu.value
+}
+
+function openSettings() {
+  showUserMenu.value = false
+  toastStore.info('系统设置功能开发中')
+}
+
+function handleClickOutside(event: MouseEvent) {
+  if (userInfoRef.value && !userInfoRef.value.contains(event.target as Node)) {
+    showUserMenu.value = false
+  }
+}
+
+onMounted(() => {
+  if (userId) {
+    chatStore.setUserId(userId)
+    chatStore.loadSessions()
+  }
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 function scrollToBottom() {
   nextTick(() => {
@@ -292,13 +329,10 @@ watch(inputMessage, () => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-
 .chat-page {
   display: flex;
   height: 100vh;
   background: #faf9f7;
-  font-family: 'Inter', sans-serif;
   overflow: hidden;
 }
 
@@ -381,7 +415,6 @@ watch(inputMessage, () => {
   padding: 4px 8px;
   outline: none;
   background: white;
-  font-family: 'Inter', sans-serif;
 }
 
 .session-actions {
@@ -422,6 +455,7 @@ watch(inputMessage, () => {
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
 }
 
 .user-avatar {
@@ -433,6 +467,13 @@ watch(inputMessage, () => {
   align-items: center;
   justify-content: center;
   color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-avatar:hover {
+  background: #e5e5e5;
+  color: #1a1a1a;
 }
 
 .username {
@@ -440,9 +481,13 @@ watch(inputMessage, () => {
   font-size: 14px;
   font-weight: 500;
   color: #1a1a1a;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.logout-btn {
+.more-btn {
   padding: 6px;
   background: none;
   border: none;
@@ -452,9 +497,53 @@ watch(inputMessage, () => {
   transition: all 0.2s ease;
 }
 
-.logout-btn:hover {
+.more-btn:hover {
   background: #f5f5f5;
   color: #666;
+}
+
+.user-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 16px;
+  right: 16px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  z-index: 100;
+  min-width: 160px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+.menu-item:hover {
+  background: #f5f5f5;
+  color: #1a1a1a;
+}
+
+.menu-item.logout-item {
+  color: #ef4444;
+}
+
+.menu-item.logout-item:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.menu-divider {
+  height: 1px;
+  background: #e5e5e5;
+  margin: 4px 0;
 }
 
 .main-content {
@@ -481,8 +570,8 @@ watch(inputMessage, () => {
 }
 
 .empty-state h2 {
-  font-family: 'Noto Serif SC', serif;
   font-size: 24px;
+  font-weight: 600;
   color: #1a1a1a;
 }
 
@@ -618,7 +707,6 @@ textarea {
   font-size: 15px;
   line-height: 1.5;
   resize: none;
-  font-family: 'Inter', sans-serif;
   max-height: 120px;
 }
 
@@ -665,7 +753,6 @@ textarea:focus {
 }
 
 .upload-header h3 {
-  font-family: 'Noto Serif SC', serif;
   font-size: 16px;
   font-weight: 600;
   color: #1a1a1a;
@@ -763,5 +850,17 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 菜单动画 */
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 </style>
