@@ -9,6 +9,7 @@ import yuuine.docmind.core.chat.dto.ChatMessageRequest;
 import yuuine.docmind.core.chat.dto.ChatMessageResponse;
 import yuuine.docmind.core.chat.dto.ChatSessionCreateRequest;
 import yuuine.docmind.core.chat.dto.ChatSessionResponse;
+import yuuine.docmind.core.chat.dto.ChatSessionUpdateRequest;
 import yuuine.docmind.core.chat.service.ChatService;
 
 import java.util.List;
@@ -25,6 +26,14 @@ public class ChatController {
     public Result<ChatSessionResponse> createSession(@RequestBody ChatSessionCreateRequest request,
                                                      @RequestParam Long userId) {
         return Result.success(chatService.createSession(request, userId));
+    }
+
+    @Audited(action = AuditAction.CHAT_SESSION_UPDATE, resourceType = "ChatSession", resourceIdFromPath = "id", describe = "更新聊天会话")
+    @PutMapping("/sessions/{id}")
+    public Result<ChatSessionResponse> updateSession(@PathVariable Long id,
+                                                      @RequestBody ChatSessionUpdateRequest request,
+                                                      @RequestParam Long userId) {
+        return Result.success(chatService.updateSession(id, request, userId));
     }
 
     @GetMapping("/sessions")

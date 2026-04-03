@@ -28,7 +28,8 @@ const toastStore = useToastStore()
 .toast-container {
   position: fixed;
   top: 20px;
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 9999;
   display: flex;
   flex-direction: column;
@@ -158,12 +159,12 @@ const toastStore = useToastStore()
 
 .toast-enter-from {
   opacity: 0;
-  transform: translateX(100%);
+  transform: translateY(-20px);
 }
 
 .toast-leave-to {
   opacity: 0;
-  transform: translateX(100%);
+  transform: translateY(-20px);
 }
 
 /* 响应式 */

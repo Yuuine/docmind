@@ -18,19 +18,15 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function login(credentials: { username: string; password: string }) {
-    const response = await userApi.login(credentials) as any
-    if (response.data) {
-      setUser(response.data)
-    }
-    return response
+    const userData = await userApi.login(credentials)
+    setUser(userData)
+    return userData
   }
 
   async function register(data: { username: string; password: string; email?: string; phone?: string }) {
-    const response = await userApi.register(data) as any
-    if (response.data) {
-      setUser(response.data)
-    }
-    return response
+    const userData = await userApi.register(data)
+    setUser(userData)
+    return userData
   }
 
   function logout() {

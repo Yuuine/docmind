@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -19,12 +20,12 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.OK)
-    public Result<Void> handleBusinessException(BusinessException e, HttpServletRequest request) {
+    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException e, HttpServletRequest request) {
         String traceId = MDC.get("traceId");
         log.warn("[BusinessException] traceId: {}, path: {}, code: {}, message: {}",
-                traceId, request.getRequestURI(), e.getErrorCode().getCode(), e.getMessage());
-        return Result.error(400, e.getMessage());
+                traceId, request.getRequestURI(), e.getErrorCode().getHttpCode(), e.getMessage());
+        Result<Void> result = Result.error(e.getErrorCode().getHttpCode(), e.getMessage());
+        return ResponseEntity.status(HttpStatus.valueOf(e.getErrorCode().getHttpCode())).body(result);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

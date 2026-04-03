@@ -29,11 +29,29 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
         }
 
+        String email = isBlank(request.getEmail()) ? null : request.getEmail();
+        if (email != null) {
+            queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(User::getEmail, email);
+            if (userRepository.selectCount(queryWrapper) > 0) {
+                throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
+            }
+        }
+
+        String phone = isBlank(request.getPhone()) ? null : request.getPhone();
+        if (phone != null) {
+            queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(User::getPhone, phone);
+            if (userRepository.selectCount(queryWrapper) > 0) {
+                throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
+            }
+        }
+
         User user = User.builder()
                 .username(request.getUsername())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .email(request.getEmail())
-                .phone(request.getPhone())
+                .email(email)
+                .phone(phone)
                 .build();
 
         userRepository.insert(user);
@@ -116,5 +134,9 @@ public class UserServiceImpl implements UserService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
+    }
+
+    private boolean isBlank(String str) {
+        return str == null || str.trim().isEmpty();
     }
 }

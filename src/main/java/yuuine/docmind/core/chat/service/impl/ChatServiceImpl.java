@@ -6,10 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
-import yuuine.docmind.core.chat.dto.ChatMessageRequest;
-import yuuine.docmind.core.chat.dto.ChatMessageResponse;
-import yuuine.docmind.core.chat.dto.ChatSessionCreateRequest;
-import yuuine.docmind.core.chat.dto.ChatSessionResponse;
+import yuuine.docmind.core.chat.dto.*;
 import yuuine.docmind.core.chat.model.ChatMessage;
 import yuuine.docmind.core.chat.model.ChatSession;
 import yuuine.docmind.core.chat.repository.ChatMessageRepository;
@@ -34,6 +31,24 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 .build();
 
         chatSessionRepository.insert(session);
+        return toSessionResponse(session);
+    }
+
+    @Override
+    public ChatSessionResponse updateSession(Long sessionId, ChatSessionUpdateRequest request, Long userId) {
+        ChatSession session = chatSessionRepository.selectById(sessionId);
+        if (session == null) {
+            throw new BusinessException(ErrorCode.CHAT_SESSION_NOT_FOUND);
+        }
+        if (!session.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改此会话");
+        }
+
+        if (request.getTitle() != null) {
+            session.setTitle(request.getTitle());
+        }
+        chatSessionRepository.updateById(session);
+
         return toSessionResponse(session);
     }
 
