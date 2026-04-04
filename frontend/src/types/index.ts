@@ -67,3 +67,34 @@ export interface AuditLog {
   status: string
   createdAt: string
 }
+
+export interface AIModel {
+  id: number
+  name: string
+  baseUrl: string
+  apiKey: string
+  modelName: string
+  maxTokens: number
+  temperature: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AIModelCreateRequest {
+  name: string
+  baseUrl: string
+  apiKey: string
+  modelName: string
+  maxTokens?: number
+  temperature?: number
+}
+
+export interface AIModelUpdateRequest {
+  name?: string
+  baseUrl?: string
+  apiKey?: string
+  modelName?: string
+  maxTokens?: number
+  temperature?: number
+}

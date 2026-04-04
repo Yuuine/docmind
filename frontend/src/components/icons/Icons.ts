@@ -940,6 +940,25 @@ export const IconPaths = {
     <circle cx="15" cy="11" r="1"/>
     <path d="M8 15s2 2 4 2 4-2 4-2"/>
     <path d="M20 12h2"/>
+  `,
+
+  // 停止/方块
+  stop: `
+    <rect x="6" y="6" width="12" height="12" rx="2"/>
+  `,
+
+  // 侧边栏收起
+  panelLeftClose: `
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <path d="M9 3v18"/>
+    <path d="m15 9-3 3 3 3"/>
+  `,
+
+  // 侧边栏展开
+  panelLeftOpen: `
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <path d="M9 3v18"/>
+    <path d="m9 9 3 3-3 3"/>
   `
 } as const
 

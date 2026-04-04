@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiResponse, PageResult, User, Document, ChatSession, ChatMessage, AuditLog } from '@/types'
+import type { ApiResponse, PageResult, User, Document, ChatSession, ChatMessage, AuditLog, AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -71,6 +71,16 @@ export const chatApi = {
     api.get<ChatMessage[]>(`/chat/sessions/${id}/messages`, { params: { userId } }),
   sendMessage: (id: number, data: { content: string }, userId?: number) =>
     api.post<ChatMessage>(`/chat/sessions/${id}/messages`, data, { params: { userId } }),
+  sendMessageStream: (id: number, content: string, userId?: number): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
+    const params = new URLSearchParams({ content })
+    if (userId != null) params.set('userId', String(userId))
+    return fetch(`/api/v1/chat/sessions/${id}/messages/stream?${params.toString()}`, {
+      headers: { Accept: 'text/event-stream' }
+    }).then(res => {
+      if (!res.ok || !res.body) throw new Error(`Stream request failed: ${res.status}`)
+      return res.body.getReader()
+    })
+  },
   deleteSession: (id: number, userId?: number) =>
     api.delete<{ success: boolean }>(`/chat/sessions/${id}`, { params: { userId } })
 }
@@ -84,6 +94,19 @@ export const auditApi = {
     startDate?: string
     endDate?: string
   }) => api.get<PageResult<AuditLog>>('/audit/logs', { params })
+}
+
+export const modelsApi = {
+  getModels: (userId: number) =>
+    api.get<AIModel[]>('/models', { params: { userId } }),
+  createModel: (data: AIModelCreateRequest, userId?: number) =>
+    api.post<AIModel>('/models', data, { params: { userId } }),
+  updateModel: (id: number, data: AIModelUpdateRequest, userId?: number) =>
+    api.put<AIModel>(`/models/${id}`, data, { params: { userId } }),
+  deleteModel: (id: number, userId?: number) =>
+    api.delete(`/models/${id}`, { params: { userId } }),
+  activateModel: (id: number, userId?: number) =>
+    api.post(`/models/${id}/activate`, null, { params: { userId } })
 }
 
 export default api

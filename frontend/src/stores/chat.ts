@@ -20,6 +20,9 @@ export const useChatStore = defineStore('chat', () => {
   const currentCapabilities = ref<string[]>([])
   const isLoading = ref(false)
   const isSending = ref(false)
+  const isStreaming = ref(false)
+  const streamingContent = ref('')
+  const abortController = ref<AbortController | null>(null)
 
   const currentSession = computed(() => {
     return sessions.value.find(s => s.id === currentSessionId.value) || null
@@ -119,6 +122,144 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const sendMessageStream = async (content: string) => {
+    if (!userId.value || !currentSessionId.value) return
+    abortController.value = new AbortController()
+    isSending.value = true
+    isStreaming.value = true
+    streamingContent.value = ''
+
+    const userMessage: ChatMessage = {
+      id: Date.now(),
+      sessionId: currentSessionId.value,
+      role: 'USER',
+      content,
+      createdAt: new Date().toISOString()
+    }
+    messages.value.push(userMessage)
+
+    try {
+      const reader = await chatApi.sendMessageStream(
+        currentSessionId.value,
+        content,
+        userId.value
+      )
+      await processStreamReader(reader)
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        console.log('Stream aborted by user')
+        if (streamingContent.value) {
+          messages.value.push({
+            id: Date.now() + 1,
+            sessionId: currentSessionId.value,
+            role: 'ASSISTANT',
+            content: streamingContent.value + '\n\n[已中断]',
+            createdAt: new Date().toISOString()
+          })
+        }
+      } else {
+        console.error('Stream request failed:', error)
+      }
+    } finally {
+      isSending.value = false
+      isStreaming.value = false
+      streamingContent.value = ''
+      abortController.value = null
+    }
+  }
+
+  const stopStreaming = () => {
+    if (abortController.value) {
+      abortController.value.abort()
+    }
+  }
+
+  const processStreamReader = async (reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> => {
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+
+        for (const part of parts) {
+          const trimmed = part.trim()
+          if (!trimmed) continue
+
+          const dataLine = trimmed.split('\n').find(line => line.startsWith('data:'))
+          if (!dataLine) continue
+
+          const jsonStr = dataLine.slice(5).trim()
+          if (!jsonStr) continue
+
+          let parsed
+          try {
+            parsed = JSON.parse(jsonStr)
+          } catch (e) {
+            console.warn('Failed to parse SSE JSON:', jsonStr, e)
+            continue
+          }
+
+          if (parsed.error) {
+            console.error('Server stream error:', parsed.error)
+            throw new Error(parsed.error)
+          }
+
+          if (parsed.done) {
+            if (streamingContent.value && userId.value && currentSessionId.value) {
+              messages.value.push({
+                id: Date.now() + 1,
+                sessionId: currentSessionId.value,
+                role: 'ASSISTANT',
+                content: streamingContent.value,
+                createdAt: new Date().toISOString()
+              })
+            }
+            return
+          }
+
+          if (parsed.content != null) {
+            streamingContent.value += parsed.content
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        const dataLine = buffer.split('\n').find(line => line.startsWith('data:'))
+        if (dataLine) {
+          const jsonStr = dataLine.slice(5).trim()
+          if (jsonStr) {
+            try {
+              const parsed = JSON.parse(jsonStr)
+              if (parsed.content != null) {
+                streamingContent.value += parsed.content
+              }
+            } catch (e) {
+              console.warn('Failed to parse remaining SSE JSON:', jsonStr, e)
+            }
+          }
+        }
+      }
+
+      if (streamingContent.value && userId.value && currentSessionId.value) {
+        messages.value.push({
+          id: Date.now() + 1,
+          sessionId: currentSessionId.value,
+          role: 'ASSISTANT',
+          content: streamingContent.value,
+          createdAt: new Date().toISOString()
+        })
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
   const setModel = (modelId: number | null) => {
     currentModelId.value = modelId
   }
@@ -145,6 +286,9 @@ export const useChatStore = defineStore('chat', () => {
     currentCapabilities,
     isLoading,
     isSending,
+    isStreaming,
+    streamingContent,
+    abortController,
     currentSession,
 
     setUserId,
@@ -154,6 +298,9 @@ export const useChatStore = defineStore('chat', () => {
     switchSession,
     deleteSession,
     sendMessage,
+    sendMessageStream,
+    stopStreaming,
+    processStreamReader,
     setModel,
     toggleCapability,
     setCapabilities

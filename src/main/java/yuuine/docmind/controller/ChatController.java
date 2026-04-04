@@ -1,7 +1,9 @@
 package yuuine.docmind.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import yuuine.docmind.common.model.Result;
 import yuuine.docmind.core.audit.annotation.Audited;
 import yuuine.docmind.core.audit.valueobject.AuditAction;
@@ -53,6 +55,16 @@ public class ChatController {
                                                    @RequestParam Long userId) {
         request.setSessionId(id);
         return Result.success(chatService.sendMessage(request, userId));
+    }
+
+    @GetMapping(value = "/sessions/{id}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter sendMessageStream(@PathVariable Long id,
+                                        @RequestParam String content,
+                                        @RequestParam Long userId) {
+        ChatMessageRequest request = new ChatMessageRequest();
+        request.setSessionId(id);
+        request.setContent(content);
+        return chatService.sendMessageStream(request, userId);
     }
 
     @Audited(action = AuditAction.CHAT_SESSION_DELETE, resourceType = "ChatSession", resourceIdParam = "id", describe = "删除聊天会话")
