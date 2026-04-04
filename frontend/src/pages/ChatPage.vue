@@ -85,6 +85,7 @@
         <div class="model-selector-wrapper" ref="modelSelectorRef">
           <div class="model-selector" @click.stop="toggleModelMenu">
             <span class="model-name">{{ modelStore.activeModel?.name || '选择模型' }}</span>
+            <span v-if="modelStore.activeModel?.providerType && modelStore.activeModel.providerType !== 'CUSTOM'" class="selector-provider-tag">{{ getProviderLabel(modelStore.activeModel.providerType) }}</span>
             <span class="chevron">▼</span>
           </div>
           <transition name="menu-fade">
@@ -102,7 +103,10 @@
                   :class="['dropdown-item', { active: model.id === modelStore.activeModel?.id }]"
                   @click="selectModel(model.id)"
                 >
-                  <span class="model-item-name">{{ model.name }}</span>
+                  <div class="model-item-info">
+                    <span class="model-item-name">{{ model.name }}</span>
+                    <span v-if="model.providerType && model.providerType !== 'CUSTOM'" class="provider-tag">{{ getProviderLabel(model.providerType) }}</span>
+                  </div>
                   <Icon v-if="model.id === modelStore.activeModel?.id" name="check" :size="14" />
                 </div>
                 <div class="menu-divider"></div>
@@ -159,23 +163,26 @@
       </div>
 
       <div v-if="chatStore.currentSessionId" class="input-area">
-        <div class="input-wrapper">
-          <textarea
-            v-model="inputMessage"
-            @keydown="handleKeyDown"
-            placeholder="输入您的问题..."
-            rows="1"
-            ref="textareaRef"
-          ></textarea>
-          <button
-            :class="['send-btn', { 'stop-btn': chatStore.isStreaming }]"
-            @click="handleSendOrStop"
-            :disabled="!inputMessage.trim() && !chatStore.isStreaming"
-          >
-            <Icon v-if="chatStore.isStreaming" name="stop" :size="16" />
-            <Icon v-else name="arrowRight" :size="20" />
-          </button>
-        </div>
+        <AutoResizeTextarea
+          ref="inputRef"
+          v-model="inputMessage"
+          placeholder="输入您的问题..."
+          :min-rows="1"
+          :max-rows="6"
+          enter-behavior="send"
+          @send="sendMessage"
+        >
+          <template #suffix>
+            <button
+              :class="['send-btn', { 'stop-btn': chatStore.isStreaming }]"
+              @click="handleSendOrStop"
+              :disabled="!inputMessage.trim() && !chatStore.isStreaming"
+            >
+              <Icon v-if="chatStore.isStreaming" name="stop" :size="16" />
+              <Icon v-else name="arrowRight" :size="20" />
+            </button>
+          </template>
+        </AutoResizeTextarea>
       </div>
     </div>
 
@@ -225,7 +232,7 @@ import { useModelsStore } from '@/stores/models'
 import { documentApi } from '@/api'
 import { Icon } from '@/components/icons'
 import { ModelsModal } from '@/components/models'
-import { measureTextHeight, measureTextareaHeight } from '@/utils/textMeasure'
+import { AutoResizeTextarea } from '@/components'
 import type { Document, ChatSession } from '@/types'
 
 const router = useRouter()
@@ -235,7 +242,7 @@ const toastStore = useToastStore()
 const modelStore = useModelsStore()
 
 const messagesContainer = ref<HTMLElement>()
-const textareaRef = ref<HTMLTextAreaElement>()
+const inputRef = ref<InstanceType<typeof AutoResizeTextarea>>()
 const titleInputRef = ref<HTMLInputElement>()
 const userInfoRef = ref<HTMLElement>()
 const modelSelectorRef = ref<HTMLElement>()
@@ -291,13 +298,6 @@ function isLastAssistantMessage(message: any, index: number): boolean {
   return message.role === 'ASSISTANT' && index === chatStore.messages.length - 1
 }
 
-function handleKeyDown(event: KeyboardEvent) {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    sendMessage()
-  }
-}
-
 async function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
@@ -337,6 +337,16 @@ async function selectModel(modelId: number) {
     await modelStore.activateModel(modelId, userId)
   }
   showModelMenu.value = false
+}
+
+function getProviderLabel(providerType: string): string {
+  const labels: Record<string, string> = {
+    DEEPSEEK: 'DeepSeek',
+    OPENAI: 'OpenAI',
+    MOONSHOT: 'Kimi',
+    QWEN: '千问'
+  }
+  return labels[providerType] || providerType
 }
 
 function openModelsModal() {
@@ -427,20 +437,6 @@ function handleSessionTitleKeydown(event: KeyboardEvent, sessionId: number) {
     editingTitle.value = ''
   }
 }
-
-watch(inputMessage, () => {
-  nextTick(() => {
-    if (textareaRef.value) {
-      const text = inputMessage.value || ' '
-      const font = `${getComputedStyle(textareaRef.value).fontSize} ${getComputedStyle(textareaRef.value).fontFamily}`
-      const width = textareaRef.value.clientWidth - 24
-      const lineHeight = parseFloat(getComputedStyle(textareaRef.value).lineHeight)
-      const measured = measureTextareaHeight(text, font, width, lineHeight)
-      const newHeight = Math.max(Math.min(measured, 120), 36)
-      textareaRef.value.style.height = newHeight + 'px'
-    }
-  })
-})
 </script>
 
 <style scoped>
@@ -805,6 +801,36 @@ watch(inputMessage, () => {
   white-space: nowrap;
 }
 
+.model-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.provider-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  color: #666;
+  white-space: nowrap;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.selector-provider-tag {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  color: #666;
+  white-space: nowrap;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
 .dropdown-item.active .model-item-name {
   font-weight: 500;
 }
@@ -946,36 +972,6 @@ watch(inputMessage, () => {
   padding: 20px 24px;
   border-top: 1px solid #e5e5e5;
   background: white;
-}
-
-.input-wrapper {
-  max-width: 800px;
-  margin: 0 auto;
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-  background: #faf9f7;
-  border: 1px solid #e5e5e5;
-  border-radius: 12px;
-  padding: 12px 16px;
-}
-
-.input-wrapper:focus-within {
-  border-color: #1a1a1a;
-}
-
-textarea {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 15px;
-  line-height: 1.5;
-  resize: none;
-  max-height: 120px;
-}
-
-textarea:focus {
-  outline: none;
 }
 
 .send-btn {

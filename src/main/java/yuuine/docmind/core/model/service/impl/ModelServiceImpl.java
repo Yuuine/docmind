@@ -47,6 +47,8 @@ public class ModelServiceImpl implements ModelService {
                 .modelName(request.getModelName())
                 .maxTokens(request.getMaxTokens())
                 .temperature(request.getTemperature())
+                .providerType(request.getProviderType())
+                .extraConfig(request.getExtraConfig())
                 .isActive(true)
                 .build();
 
@@ -81,6 +83,12 @@ public class ModelServiceImpl implements ModelService {
         }
         if (request.getTemperature() != null) {
             model.setTemperature(request.getTemperature());
+        }
+        if (StringUtils.hasText(request.getProviderType())) {
+            model.setProviderType(request.getProviderType());
+        }
+        if (request.getExtraConfig() != null) {
+            model.setExtraConfig(request.getExtraConfig());
         }
 
         aiModelRepository.updateById(model);
@@ -132,6 +140,8 @@ public class ModelServiceImpl implements ModelService {
                 .maxTokens(model.getMaxTokens())
                 .temperature(model.getTemperature())
                 .isActive(model.getIsActive())
+                .providerType(model.getProviderType())
+                .extraConfig(model.getExtraConfig())
                 .createdAt(model.getCreatedAt())
                 .updatedAt(model.getUpdatedAt())
                 .build();

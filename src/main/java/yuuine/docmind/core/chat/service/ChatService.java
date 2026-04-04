@@ -1,6 +1,7 @@
 package yuuine.docmind.core.chat.service;
 
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.http.codec.ServerSentEvent;
+import reactor.core.publisher.Flux;
 import yuuine.docmind.core.chat.dto.ChatMessageRequest;
 import yuuine.docmind.core.chat.dto.ChatMessageResponse;
 import yuuine.docmind.core.chat.dto.ChatSessionCreateRequest;
@@ -16,7 +17,7 @@ public interface ChatService {
 
     ChatMessageResponse sendMessage(ChatMessageRequest request, Long userId);
 
-    SseEmitter sendMessageStream(ChatMessageRequest request, Long userId);
+    Flux<ServerSentEvent<String>> sendMessageStream(ChatMessageRequest request, Long userId);
 
     List<ChatSessionResponse> listSessions(Long userId);
 

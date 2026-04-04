@@ -38,6 +38,12 @@ public class AIModel {
     @TableField("temperature")
     private Double temperature;
 
+    @TableField("provider_type")
+    private String providerType;
+
+    @TableField("extra_config")
+    private String extraConfig;
+
     @TableField("is_active")
     private Boolean isActive;
 

@@ -1,0 +1,3 @@
+ALTER TABLE ai_model 
+  ADD COLUMN provider_type VARCHAR(30) DEFAULT 'CUSTOM' COMMENT '提供商类型',
+  ADD COLUMN extra_config TEXT DEFAULT NULL COMMENT 'JSON格式的差异化配置';

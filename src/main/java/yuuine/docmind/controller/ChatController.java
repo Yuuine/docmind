@@ -2,8 +2,9 @@ package yuuine.docmind.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
 import yuuine.docmind.common.model.Result;
 import yuuine.docmind.core.audit.annotation.Audited;
 import yuuine.docmind.core.audit.valueobject.AuditAction;
@@ -58,9 +59,9 @@ public class ChatController {
     }
 
     @GetMapping(value = "/sessions/{id}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter sendMessageStream(@PathVariable Long id,
-                                        @RequestParam String content,
-                                        @RequestParam Long userId) {
+    public Flux<ServerSentEvent<String>> sendMessageStream(@PathVariable Long id,
+                                                        @RequestParam String content,
+                                                        @RequestParam Long userId) {
         ChatMessageRequest request = new ChatMessageRequest();
         request.setSessionId(id);
         request.setContent(content);
