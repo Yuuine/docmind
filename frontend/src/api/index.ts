@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApiResponse, PageResult, User, Document, ChatSession, ChatMessage, AuditLog, AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
+import type { ApiResponse, PageResult, User, Document, ChatSession, ChatMessage, AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -40,9 +40,9 @@ export const userApi = {
     api.post<User>('/users/register', data),
   login: (data: { username: string; password: string }) =>
     api.post<User>('/users/login', data),
-  getProfile: () => api.get<User>('/users/profile'),
-  updateProfile: (data: { email?: string; phone?: string; avatarUrl?: string }) =>
-    api.put<User>('/users/profile', data)
+  getProfile: (userId?: number) => api.get<User>('/users/profile', { params: { userId } }),
+  updateProfile: (data: { email?: string; phone?: string; avatarUrl?: string }, userId?: number) =>
+    api.put<User>('/users/profile', data, { params: { userId } })
 }
 
 export const documentApi = {
@@ -53,8 +53,8 @@ export const documentApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
-  list: (params: { page: number; size: number }) =>
-    api.get<PageResult<Document>>('/documents', { params }),
+  list: (params: { page?: number; size?: number; filename?: string; status?: string }, userId?: number) =>
+    api.get<Document[]>('/documents', { params: { ...params, userId } }),
   getDetail: (id: number) => api.get<Document>(`/documents/${id}`),
   download: (id: number) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
   delete: (id: number) => api.delete<{ success: boolean }>(`/documents/${id}`)
@@ -83,17 +83,6 @@ export const chatApi = {
   },
   deleteSession: (id: number, userId?: number) =>
     api.delete<{ success: boolean }>(`/chat/sessions/${id}`, { params: { userId } })
-}
-
-export const auditApi = {
-  getLogs: (params: {
-    page: number
-    size: number
-    userId?: number
-    action?: string
-    startDate?: string
-    endDate?: string
-  }) => api.get<PageResult<AuditLog>>('/audit/logs', { params })
 }
 
 export const modelsApi = {

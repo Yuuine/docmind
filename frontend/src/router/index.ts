@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/pages/HomePage.vue'
 import LoginRegisterPage from '@/pages/LoginRegisterPage.vue'
+import GlobalLayout from '@/components/layout/GlobalLayout.vue'
 import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
@@ -17,10 +18,26 @@ const router = createRouter({
       component: LoginRegisterPage
     },
     {
-      path: '/chat',
-      name: 'chat',
-      component: () => import('@/pages/ChatPage.vue'),
-      meta: { requiresAuth: true }
+      path: '/',
+      component: GlobalLayout,
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: 'chat',
+          name: 'chat',
+          component: () => import('@/pages/ChatPage.vue')
+        },
+        {
+          path: 'documents',
+          name: 'documents',
+          component: () => import('@/pages/DocumentsPage.vue')
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/pages/SettingsPage.vue')
+        }
+      ]
     }
   ],
   scrollBehavior() {

@@ -120,7 +120,7 @@ const handleLogout = () => {
 
 .home-page {
   min-height: 100vh;
-  background: #faf9f7;
+  background: transparent;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -286,18 +286,23 @@ const handleLogout = () => {
   color: #888;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   font-weight: 400;
 }
 
 .link:hover {
   color: #1a1a1a;
   text-decoration: underline;
+  transform: translateY(-1px);
 }
 
 /* 功能特性区域 - 增加留白 */
 .features-section {
-  background: #fff;
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--blur-lg)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass-md);
   padding: 140px 40px;
   position: relative;
   z-index: 10;

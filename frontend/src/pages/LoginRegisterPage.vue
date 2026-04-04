@@ -47,6 +47,10 @@
               <button type="submit" :disabled="isLoading" class="submit-btn">
                 {{ isLoading ? '登录中...' : '登录' }}
               </button>
+
+              <button type="button" class="test-login-btn" @click="handleTestLogin">
+                一键模拟登录 (yuuine)
+              </button>
             </form>
 
             <form v-else key="register" @submit.prevent="handleRegister" class="form">
@@ -168,6 +172,12 @@ const registerErrors = reactive({
   password: '',
   confirmPassword: ''
 })
+
+async function handleTestLogin() {
+  loginForm.username = 'yuuine'
+  loginForm.password = '123456'
+  await handleLogin()
+}
 
 const goToHome = () => {
   router.push('/')
@@ -331,7 +341,7 @@ const handleRegister = async () => {
 <style scoped>
 .login-register-page {
   min-height: 100vh;
-  background: #faf9f7;
+  background: transparent;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -391,13 +401,15 @@ const handleRegister = async () => {
 
 /* 卡片 */
 .card {
-  background: white;
-  border-radius: 16px;
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--blur-lg)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass-md);
+  border-radius: var(--radius-lg);
   padding: 36px;
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-  border: 1px solid #f0f0f0;
 }
 
 .header {
@@ -505,18 +517,21 @@ const handleRegister = async () => {
 .form-group input {
   width: 100%;
   padding: 10px 14px 10px 38px;
-  border: 1.5px solid #e8e8e8;
-  border-radius: 8px;
+  border: 1.5px solid var(--glass-border-subtle);
+  border-radius: var(--radius-sm);
   font-size: 14px;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   outline: none;
-  background: #fafafa;
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
   color: #333;
 }
 
 .form-group input:focus {
-  border-color: #1a1a1a;
-  background: white;
+  border-color: var(--glass-border);
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.04);
 }
 
 .form-group input::placeholder {
@@ -563,24 +578,43 @@ const handleRegister = async () => {
 .submit-btn {
   padding: 12px 24px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 500;
   color: white;
   background: #1a1a1a;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
   margin-top: 4px;
 }
 
 .submit-btn:hover:not(:disabled) {
   background: #333;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .submit-btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.98);
+}
+
+.test-login-btn {
+  width: 100%;
+  padding: 10px 24px;
+  border: 1px dashed var(--glass-border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: #999;
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-top: 4px;
+}
+
+.test-login-btn:hover {
+  color: #666;
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
 .submit-btn:disabled {
@@ -616,15 +650,15 @@ const handleRegister = async () => {
 }
 
 /* 隐藏浏览器原生的密码显示/隐藏按钮 */
-.form-group input[type="password"]::-ms-reveal {
+.form-group input[type='password']::-ms-reveal {
   display: none;
 }
 
-.form-group input[type="password"]::-ms-clear {
+.form-group input[type='password']::-ms-clear {
   display: none;
 }
 
-.form-group input[type="password"]::-webkit-credentials-auto-fill-button {
+.form-group input[type='password']::-webkit-credentials-auto-fill-button {
   visibility: hidden;
   pointer-events: none;
   position: absolute;

@@ -53,5 +53,6 @@ html, body {
 /* 确保页面切换时平滑 */
 .app-wrapper {
   min-height: 100vh;
+  background: var(--bg-base);
 }
 </style>

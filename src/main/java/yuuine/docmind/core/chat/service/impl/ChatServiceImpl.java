@@ -147,8 +147,8 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         final String finalContext = context;
 
         List<ChatMessage> historyMessages = new ArrayList<>(chatMessages);
-        if (!historyMessages.isEmpty() && historyMessages.get(historyMessages.size() - 1).getRole() == MessageRole.USER) {
-            historyMessages.remove(historyMessages.size() - 1);
+        if (!historyMessages.isEmpty() && historyMessages.getLast().getRole() == MessageRole.USER) {
+            historyMessages.removeLast();
         }
 
         List<Map<String, String>> assembledMessages = promptAssembler.assemble(
@@ -203,7 +203,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                                 .role(MessageRole.ASSISTANT)
                                 .content(accumulatedContent.toString())
                                 .retrievedDocs(finalContext.isEmpty() ? "[]" : objectMapper.writeValueAsString(
-                                    chatMessages.stream().map(m -> m.getContent()).toList()))
+                                    chatMessages.stream().map(ChatMessage::getContent).toList()))
                                 .build();
                         chatMessageRepository.insert(assistantMessage);
                     } catch (Exception e) {

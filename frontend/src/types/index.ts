@@ -22,6 +22,8 @@ export interface User {
   updatedAt: string
 }
 
+export type DocumentStatus = 'UPLOADING' | 'PARSING' | 'INDEXING' | 'READY' | 'ERROR'
+
 export interface Document {
   id: number
   userId: number
@@ -31,7 +33,7 @@ export interface Document {
   fileSize: number
   fileMd5?: string
   storagePath: string
-  status: string
+  status: DocumentStatus
   errorMessage?: string
   createdAt: string
   updatedAt: string
@@ -54,19 +56,7 @@ export interface ChatMessage {
   createdAt: string
 }
 
-export interface AuditLog {
-  id: number
-  userId?: number
-  action: string
-  resourceType?: string
-  resourceId?: number
-  ipAddress?: string
-  userAgent?: string
-  requestData?: any
-  responseData?: any
-  status: string
-  createdAt: string
-}
+export type ModelProviderType = 'DEEPSEEK' | 'OPENAI' | 'MOONSHOT' | 'QWEN' | 'CUSTOM'
 
 export interface AIModel {
   id: number
@@ -76,7 +66,7 @@ export interface AIModel {
   modelName: string
   maxTokens: number
   temperature: number
-  providerType?: string
+  providerType?: ModelProviderType
   extraConfig?: Record<string, any>
   isActive: boolean
   createdAt: string
@@ -90,7 +80,7 @@ export interface AIModelCreateRequest {
   modelName: string
   maxTokens?: number
   temperature?: number
-  providerType?: string
+  providerType?: ModelProviderType
   extraConfig?: Record<string, any>
 }
 
@@ -101,6 +91,6 @@ export interface AIModelUpdateRequest {
   modelName?: string
   maxTokens?: number
   temperature?: number
-  providerType?: string
+  providerType?: ModelProviderType
   extraConfig?: Record<string, any>
 }

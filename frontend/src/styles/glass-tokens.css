@@ -1,0 +1,113 @@
+/* ============================================
+   DocMindRAG — Design Token System v2
+   Mainstream AI Chat UI (ChatGPT / Claude style)
+   ============================================ */
+
+:root {
+  /* === Layout === */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 0px;
+  --navbar-height: 56px;
+  --message-max-width: 720px;
+  --input-area-radius: 20px;
+
+  /* === Colors - Backgrounds === */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f8;
+  --bg-tertiary: #f9f9f9;
+
+  /* === Colors - Text === */
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --text-inverse: #ffffff;
+
+  /* === Colors - Borders === */
+  --border-light: #e5e5e5;
+  --border-lighter: #efefef;
+
+  /* === Colors - Accent === */
+  --color-accent: #007aff;
+  --color-accent-hover: #0062cc;
+  --color-active-bg: #ede9fe;
+  --color-active-text: #7c3aed;
+
+  /* === Chat Bubbles === */
+  --bubble-user-bg: #374151;
+  --bubble-user-text: #ffffff;
+  --bubble-assistant-bg: #ffffff;
+  --bubble-assistant-text: #1a1a1a;
+
+  /* === Shadows === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
+
+  /* === Radius === */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 24px;
+
+  /* === Spacing === */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* === Transitions === */
+  --transition-fast: 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --transition-normal: 250ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --transition-slow: 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+  /* === Legacy Glass Tokens (deprecated) === */
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-bg-heavy: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --shadow-glass-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #212121;
+    --bg-tertiary: #2a2a2a;
+
+    --text-primary: #ececec;
+    --text-secondary: #a0a0a0;
+    --text-tertiary: #707070;
+
+    --border-light: #333333;
+    --border-lighter: #2a2a2a;
+
+    --color-accent: #409eff;
+    --color-accent-hover: #337ecc;
+    --color-active-bg: rgba(124, 58, 237, 0.18);
+    --color-active-text: #a78bfa;
+
+    --bubble-user-bg: #2d2d2d;
+    --bubble-user-text: #ececec;
+    --bubble-assistant-bg: #262626;
+    --bubble-assistant-text: #ececec;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ============================================
+   Global Background
+   ==================================== */
+
+body {
+  background: var(--bg-secondary);
+  min-height: 100vh;
+  color: var(--text-primary);
+}
+
+#app {
+  min-height: 100vh;
+}
