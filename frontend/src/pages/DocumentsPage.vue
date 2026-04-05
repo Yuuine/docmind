@@ -1,6 +1,5 @@
 <template>
   <div class="documents-page">
-    <!-- 页面标题栏 -->
     <div class="page-header">
       <h1 class="page-title">文档管理</h1>
       <button class="upload-btn" @click="triggerUpload">
@@ -10,7 +9,6 @@
       <input ref="fileInputRef" type="file" accept=".pdf,.doc,.docx,.txt,.md" hidden @change="onFileSelected" />
     </div>
 
-    <!-- 搜索栏 -->
     <div class="search-bar">
       <input
         v-model="searchQuery"
@@ -20,7 +18,6 @@
       />
     </div>
 
-    <!-- 上传区域 -->
     <div
       class="upload-zone"
       :class="{ 'is-uploading': isUploading }"
@@ -37,27 +34,58 @@
       </div>
     </div>
 
-    <!-- 文档列表区域 -->
     <div v-if="filteredDocuments.length > 0" class="doc-list">
-      <div v-for="doc in filteredDocuments" :key="doc.id" class="doc-card">
-        <div class="doc-info">
-          <Icon name="document" :size="20" />
-          <span class="doc-filename">{{ doc.filename }}</span>
-        </div>
-        <div class="doc-meta">
-          <span>{{ formatFileSize(doc.fileSize) }}</span>
-          <span>{{ formatDate(doc.createdAt) }}</span>
-        </div>
-        <div class="doc-actions">
-          <span class="status-tag" :class="'status-' + doc.status.toLowerCase()">{{ statusLabel(doc.status) }}</span>
-          <button class="delete-btn" @click.stop="confirmDelete(doc)" title="删除">
-            <Icon name="trash" :size="16" />
-          </button>
+      <div ref="listAnchorRef" class="doc-list-anchor" aria-hidden="true" />
+      <div
+        class="doc-list-virtual"
+        :style="{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          position: 'relative',
+          width: '100%'
+        }"
+      >
+        <div
+          v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+          :key="String(virtualRow.key)"
+          :ref="(el) => bindMeasureRef(el)"
+          class="doc-row"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: `${virtualRow.size}px`,
+            transform: `translateY(${virtualRow.start}px)`
+          }"
+        >
+          <div class="doc-card">
+            <div class="doc-info">
+              <Icon name="document" :size="20" />
+              <span class="doc-filename">{{ filteredDocuments[virtualRow.index]?.filename }}</span>
+            </div>
+            <div class="doc-meta">
+              <span>{{ formatFileSize(filteredDocuments[virtualRow.index]?.fileSize ?? 0) }}</span>
+              <span>{{ formatDate(filteredDocuments[virtualRow.index]?.createdAt ?? '') }}</span>
+            </div>
+            <div class="doc-actions">
+              <span
+                class="status-tag"
+                :class="'status-' + (filteredDocuments[virtualRow.index]?.status ?? '').toLowerCase()"
+                >{{ statusLabel(filteredDocuments[virtualRow.index]?.status ?? '') }}</span
+              >
+              <button
+                class="delete-btn"
+                @click.stop="confirmDelete(filteredDocuments[virtualRow.index]!)"
+                title="删除"
+              >
+                <Icon name="trash" :size="16" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 空状态 -->
     <div v-else class="empty-state">
       <Icon name="document" :size="48" />
       <p class="empty-title">暂无文档</p>
@@ -77,24 +105,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, nextTick, onBeforeUnmount, type ComponentPublicInstance } from 'vue'
+import { useWindowVirtualizer, measureElement } from '@tanstack/vue-virtual'
 import { documentApi } from '@/api'
-import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
 import { Icon } from '@/components/icons'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useDocumentsList } from '@/composables/useDocumentsList'
 import type { Document } from '@/types'
 
-const userStore = useUserStore()
 const toastStore = useToastStore()
+const { documents, loadDocuments } = useDocumentsList()
 
-const documents = ref<Document[]>([])
 const searchQuery = ref('')
 const uploadProgress = ref(0)
 const isUploading = ref(false)
 const showDeleteDocModal = ref(false)
 const targetDeleteDoc = ref<Document | null>(null)
 const fileInputRef = ref<HTMLInputElement>()
+const listAnchorRef = ref<HTMLElement | null>(null)
+const scrollMargin = ref(0)
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'
@@ -103,7 +133,12 @@ function formatFileSize(bytes: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return new Date(dateStr).toLocaleDateString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 function statusLabel(status: string): string {
@@ -117,18 +152,46 @@ function statusLabel(status: string): string {
   return map[status] || status
 }
 
-async function loadDocuments() {
-  const userId = userStore.user?.id
-  if (!userId) return
-  const result = await documentApi.list({ page: 1, size: 100 }) as any
-  documents.value = result.items || result || []
-}
-
 const filteredDocuments = computed(() => {
   if (!searchQuery.value.trim()) return documents.value
   const q = searchQuery.value.toLowerCase()
   return documents.value.filter(d => d.filename.toLowerCase().includes(q))
 })
+
+function recalcListScrollMargin() {
+  const el = listAnchorRef.value
+  if (typeof window === 'undefined' || !el) return
+  scrollMargin.value = el.getBoundingClientRect().top + window.scrollY
+}
+
+const virtualizerOptions = computed(() => ({
+  count: filteredDocuments.value.length,
+  estimateSize: () => 88,
+  overscan: 6,
+  scrollMargin: scrollMargin.value,
+  getItemKey: (index: number) => filteredDocuments.value[index]?.id ?? index,
+  measureElement
+}))
+
+const rowVirtualizer = useWindowVirtualizer(virtualizerOptions)
+
+function bindMeasureRef(el: Element | ComponentPublicInstance | null) {
+  rowVirtualizer.value.measureElement(el as HTMLElement | null)
+}
+
+watch(
+  () => documents.value.length,
+  () => nextTick(() => recalcListScrollMargin())
+)
+
+watch(
+  () => filteredDocuments.value.length,
+  () =>
+    nextTick(() => {
+      recalcListScrollMargin()
+      rowVirtualizer.value.measure()
+    })
+)
 
 function triggerUpload() {
   fileInputRef.value?.click()
@@ -142,7 +205,10 @@ async function handleFileUpload(file: File) {
     await documentApi.upload(file)
     uploadProgress.value = 100
     toastStore.success('文件上传成功')
-    setTimeout(() => { uploadProgress.value = 0; isUploading.value = false }, 1000)
+    setTimeout(() => {
+      uploadProgress.value = 0
+      isUploading.value = false
+    }, 1000)
     await loadDocuments()
   } catch {
     toastStore.error('文件上传失败')
@@ -192,8 +258,20 @@ async function executeDelete() {
   }
 }
 
+function onResize() {
+  recalcListScrollMargin()
+}
+
 onMounted(() => {
   loadDocuments()
+  nextTick(() => {
+    recalcListScrollMargin()
+    window.addEventListener('resize', onResize)
+  })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
 })
 </script>
 
@@ -207,7 +285,6 @@ onMounted(() => {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* 页面标题栏 */
 .page-header {
   display: flex;
   align-items: center;
@@ -234,9 +311,10 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: transform var(--transition-fast),
-              box-shadow var(--transition-fast),
-              background-color var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 .upload-btn:hover {
@@ -249,7 +327,6 @@ onMounted(() => {
   transform: scale(0.98);
 }
 
-/* 搜索栏 */
 .search-bar {
   margin-bottom: 20px;
 }
@@ -267,7 +344,10 @@ onMounted(() => {
   -webkit-backdrop-filter: blur(var(--blur-sm));
   color: #1a1a1a;
   box-sizing: border-box;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .search-input:focus {
@@ -280,7 +360,6 @@ onMounted(() => {
   color: #aaa;
 }
 
-/* 上传区域 */
 .upload-zone {
   background: var(--glass-bg-light);
   backdrop-filter: blur(var(--blur-sm));
@@ -315,7 +394,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* 进度条 */
 .progress-bar {
   height: 6px;
   background: #f5f5f5;
@@ -331,10 +409,20 @@ onMounted(() => {
   transition: width 0.3s ease;
 }
 
-/* 文档列表 */
 .doc-list {
   display: flex;
   flex-direction: column;
+}
+
+.doc-list-anchor {
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.doc-row {
+  box-sizing: border-box;
+  padding-bottom: 12px;
 }
 
 .doc-card {
@@ -348,10 +436,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 12px;
-  transition: transform var(--transition-fast),
-              box-shadow var(--transition-fast),
-              background var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .doc-card:hover {
@@ -397,7 +485,6 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* 状态标签 */
 .status-tag {
   font-size: 12px;
   padding: 2px 10px;
@@ -431,7 +518,6 @@ onMounted(() => {
   color: #dc2626;
 }
 
-/* 删除按钮 */
 .delete-btn {
   display: inline-flex;
   align-items: center;
@@ -451,7 +537,6 @@ onMounted(() => {
   background: #fee2e2;
 }
 
-/* 空状态 */
 .empty-state {
   text-align: center;
   padding: 60px 20px;

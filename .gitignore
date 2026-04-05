@@ -19,6 +19,8 @@ dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
 
 # IDE
 .idea/
@@ -26,9 +28,29 @@ buildNumber.properties
 *.iml
 *.ipr
 .vscode/
+!.vscode/extensions.json
 *.swp
 *.swo
 *~
+out/
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
 
 # Node.js
 node_modules/
@@ -37,7 +59,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-dist/
 dist-ssr/
 *.local
 
@@ -48,14 +69,64 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 
 # Application
 data/
 *.env
 !*.env.example
+storage/
+uploads/
+temp/
+tmp/
+.gradle/
+application-local.yml
+application-dev.yml
+application-prod.yml
+*.pid
+*.seed
+*.pid.lock
+
+# Additional Java
+*.ctxt
+.mtj.tmp/
+hs_err_pid*
+replay_pid*
+
+# JavaScript / Frontend
+coverage/
+.nyc_output
+.eslintcache
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.vscode-test
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
 
 ### .trae ###
 .trae/
+
+### cursor ###
+.cursor/
+
+### agent ###
+.agent/
 
 ### demo ###
 demo/

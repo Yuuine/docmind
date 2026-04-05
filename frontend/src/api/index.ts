@@ -1,5 +1,6 @@
 import axios from 'axios'
-import type { ApiResponse, PageResult, User, Document, ChatSession, ChatMessage, AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
+import type { User, Document, ChatSession, ChatMessage, AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
+import { StreamHttpError } from '@/api/streamError'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -24,14 +25,14 @@ api.interceptors.response.use(
 
 declare module 'axios' {
   export interface AxiosInstance {
-    request<T = any, R = T, D = any>(config: AxiosRequestConfig<D>): Promise<R>
-    get<T = any, R = T, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
-    delete<T = any, R = T, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
-    head<T = any, R = T, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
-    options<T = any, R = T, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
-    post<T = any, R = T, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R>
-    put<T = any, R = T, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R>
-    patch<T = any, R = T, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R>
+    request<T = unknown, R = T, D = unknown>(config: AxiosRequestConfig<D>): Promise<R>
+    get<T = unknown, R = T, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
+    delete<T = unknown, R = T, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
+    head<T = unknown, R = T, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
+    options<T = unknown, R = T, D = unknown>(url: string, config?: AxiosRequestConfig<D>): Promise<R>
+    post<T = unknown, R = T, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R>
+    put<T = unknown, R = T, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R>
+    patch<T = unknown, R = T, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R>
   }
 }
 
@@ -78,10 +79,7 @@ export const chatApi = {
       headers: { Accept: 'text/event-stream' }
     }).then(res => {
       if (!res.ok || !res.body) {
-        const err: any = new Error(`Stream request failed: ${res.status}`)
-        err.status = res.status
-        err.statusText = res.statusText
-        throw err
+        throw new StreamHttpError(res.status, res.statusText)
       }
       return res.body.getReader()
     })

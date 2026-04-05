@@ -36,7 +36,7 @@
                 <Icon name="settings" :size="16" />
                 <span>设置</span>
               </button>
-              <button class="dropdown-item dropdown-item-danger" @click.stop="handleLogout">
+              <button class="dropdown-item dropdown-item-danger" @click.stop="showLogoutConfirm = true">
                 <Icon name="logout" :size="16" />
                 <span>退出登录</span>
               </button>
@@ -55,6 +55,16 @@
     </main>
 
     <SettingsModal v-model="showSettingsModal" />
+
+    <ConfirmModal
+      v-model="showLogoutConfirm"
+      title="退出登录"
+      message="确定要退出当前账号吗？退出后需要重新登录才能继续使用。"
+      confirm-text="确定退出"
+      cancel-text="取消"
+      :is-destructive="true"
+      @confirm="handleLogout"
+    />
   </div>
 </template>
 
@@ -64,6 +74,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { Icon } from '@/components/icons'
 import SettingsModal from '@/components/SettingsModal.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -72,6 +83,7 @@ const userStore = useUserStore()
 const avatarRef = ref<HTMLElement>()
 const showUserMenu = ref(false)
 const showSettingsModal = ref(false)
+const showLogoutConfirm = ref(false)
 
 const userAvatarLetter = computed(() => {
   const name = userStore.user?.username || 'U'
@@ -102,8 +114,8 @@ onBeforeUnmount(() => {
 })
 
 const navItems = [
-  { path: '/documents', label: '文档', icon: 'document' },
-  { path: '/chat', label: '对话', icon: 'message' }
+  { path: '/documents', label: '文档', icon: 'document' as const },
+  { path: '/chat', label: '对话', icon: 'message' as const }
 ]
 
 function handleLogout() {

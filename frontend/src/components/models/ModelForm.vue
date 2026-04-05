@@ -114,7 +114,8 @@ import { reactive, ref, watch } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
-import type { AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
+import type { AIModel, AIModelCreateRequest, AIModelUpdateRequest, ModelProviderType } from '@/types'
+import { getAxiosErrorMessage } from '@/utils/axiosMessage'
 import { AutoResizeTextarea } from '@/components'
 
 const props = defineProps<{
@@ -185,8 +186,24 @@ function resetForm() {
   })
 }
 
+function parseExtraConfigField(): Record<string, unknown> | undefined {
+  const raw = formData.extraConfig.trim()
+  if (!raw) return undefined
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
+function providerTypeField(): ModelProviderType | undefined {
+  const t = formData.providerType.trim()
+  if (!t) return undefined
+  return t as ModelProviderType
+}
+
 function applyQuickConfig(type: string) {
-  let base: Record<string, any> = {}
+  let base: Record<string, unknown> = {}
   try {
     if (formData.extraConfig.trim()) {
       base = JSON.parse(formData.extraConfig)
@@ -262,8 +279,8 @@ async function handleSubmit() {
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
         temperature: formData.temperature,
-        providerType: formData.providerType.trim() || undefined,
-        extraConfig: formData.extraConfig.trim() || undefined
+        providerType: providerTypeField(),
+        extraConfig: parseExtraConfigField()
       }
       await modelStore.createModel(data, userId)
       toastStore.success('模型创建成功')
@@ -275,16 +292,16 @@ async function handleSubmit() {
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
         temperature: formData.temperature,
-        providerType: formData.providerType.trim() || undefined,
-        extraConfig: formData.extraConfig.trim() || undefined
+        providerType: providerTypeField(),
+        extraConfig: parseExtraConfigField()
       }
       await modelStore.updateModel(props.model!.id, data, userId)
       toastStore.success('模型更新成功')
     }
     emit('submit')
-  } catch (error: any) {
-    const message = error.response?.data?.message || `${props.mode === 'create' ? '创建' : '更新'}失败，请稍后重试`
-    toastStore.error(message)
+  } catch (error: unknown) {
+    const fallback = `${props.mode === 'create' ? '创建' : '更新'}失败，请稍后重试`
+    toastStore.error(getAxiosErrorMessage(error, fallback))
   } finally {
     isSubmitting.value = false
   }

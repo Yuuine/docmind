@@ -128,6 +128,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
 import { Icon } from '@/components/icons'
+import { getAxiosErrorMessage } from '@/utils/axiosMessage'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -305,8 +306,8 @@ const handleLogin = async () => {
     })
     toastStore.success('登录成功')
     router.push('/chat')
-  } catch (error: any) {
-    const message = error.response?.data?.message || '登录失败，请稍后重试'
+  } catch (error: unknown) {
+    const message = getAxiosErrorMessage(error, '登录失败，请稍后重试')
     toastStore.error(message, 4000)
     triggerShake()
   } finally {
@@ -328,8 +329,8 @@ const handleRegister = async () => {
     })
     toastStore.success('注册成功')
     router.push('/chat')
-  } catch (error: any) {
-    const message = error.response?.data?.message || '注册失败，请稍后重试'
+  } catch (error: unknown) {
+    const message = getAxiosErrorMessage(error, '注册失败，请稍后重试')
     toastStore.error(message, 4000)
     triggerShake()
   } finally {

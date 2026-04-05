@@ -1,4 +1,4 @@
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   code: number
   message: string
   data: T
@@ -52,7 +52,7 @@ export interface ChatMessage {
   sessionId: number
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
   content: string
-  retrievedDocs?: any
+  retrievedDocs?: unknown
   createdAt: string
 }
 
@@ -67,7 +67,7 @@ export interface AIModel {
   maxTokens: number
   temperature: number
   providerType?: ModelProviderType
-  extraConfig?: Record<string, any>
+  extraConfig?: Record<string, unknown>
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -81,7 +81,7 @@ export interface AIModelCreateRequest {
   maxTokens?: number
   temperature?: number
   providerType?: ModelProviderType
-  extraConfig?: Record<string, any>
+  extraConfig?: Record<string, unknown>
 }
 
 export interface AIModelUpdateRequest {
@@ -92,5 +92,5 @@ export interface AIModelUpdateRequest {
   maxTokens?: number
   temperature?: number
   providerType?: ModelProviderType
-  extraConfig?: Record<string, any>
+  extraConfig?: Record<string, unknown>
 }

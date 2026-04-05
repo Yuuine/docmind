@@ -272,7 +272,7 @@ export const useChatStore = defineStore('chat', () => {
           if (parsed.error) {
             console.error('Server stream error:', parsed.error)
             streamError.value = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error)
-            throw new Error(streamError.value)
+            throw new Error(streamError.value ?? 'Stream error')
           }
 
           if (parsed.done || parsed.choices?.[0]?.finish_reason) {
