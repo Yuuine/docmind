@@ -581,17 +581,17 @@ const handleRegister = async () => {
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 500;
-  color: white;
-  background: #1a1a1a;
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-bg);
   cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
   margin-top: 4px;
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: #333;
+  background: var(--btn-primary-bg-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--btn-primary-bg) 30%, transparent);
 }
 
 .submit-btn:active:not(:disabled) {

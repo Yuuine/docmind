@@ -156,9 +156,9 @@ defineExpose({
 }
 
 .auto-resize-textarea.focused {
-  border-color: #1a1a1a;
+  border-color: var(--color-accent);
   background: white;
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 .auto-resize-textarea.disabled {
@@ -208,7 +208,7 @@ defineExpose({
 }
 
 .auto-resize-textarea:focus-within:focus-visible {
-  outline: 2px solid #1a1a1a;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 </style>

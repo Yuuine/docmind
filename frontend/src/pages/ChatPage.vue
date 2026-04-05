@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-page" :class="{ 'sidebar-collapsed': sidebarCollapsed, 'upload-collapsed': uploadCollapsed }">
+  <div class="chat-page" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <div class="sidebar-wrapper">
       <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-header">
@@ -10,44 +10,49 @@
         </div>
 
         <div class="sidebar-sessions">
-          <div
-            v-for="session in chatStore.sessions"
-            :key="session.id"
-            :class="['session-item', { active: chatStore.currentSessionId === session.id }]"
-          >
-            <input
-              v-if="editingSessionId === session.id"
-              v-model="editingTitle"
-              @keydown="handleSessionTitleKeydown($event, session.id)"
-              @blur="saveSessionTitle(session.id)"
-              ref="titleInputRef"
-              class="session-title-input"
-              placeholder="请输入对话名称"
-            />
-            <div
-              v-else
-              class="session-title"
-              @click="handleSwitchSession(session.id)"
-              @dblclick="startEditingTitle(session)"
-            >
-              {{ session.title || '新对话' }}
-            </div>
-            <div class="session-actions">
-              <button
-                v-if="editingSessionId !== session.id"
-                class="edit-btn"
-                @click.stop="startEditingTitle(session)"
+          <template v-for="group in groupedSessions" :key="group.label">
+            <div v-if="group.sessions.length > 0" class="session-group">
+              <div class="session-group-label">{{ group.label }}</div>
+              <div
+                v-for="session in group.sessions"
+                :key="session.id"
+                :class="['session-item', { active: chatStore.currentSessionId === session.id }]"
               >
-                <Icon name="edit" :size="14" />
-              </button>
-              <button
-                class="delete-btn"
-                @click.stop="chatStore.deleteSession(session.id)"
-              >
-                <Icon name="trash" :size="16" />
-              </button>
+                <input
+                  v-if="editingSessionId === session.id"
+                  v-model="editingTitle"
+                  @keydown="handleSessionTitleKeydown($event, session.id)"
+                  @blur="saveSessionTitle(session.id)"
+                  ref="titleInputRef"
+                  class="session-title-input"
+                  placeholder="请输入对话名称"
+                />
+                <div
+                  v-else
+                  class="session-title"
+                  @click="handleSwitchSession(session.id)"
+                  @dblclick="startEditingTitle(session)"
+                >
+                  {{ session.title || '新对话' }}
+                </div>
+                <div class="session-actions">
+                  <button
+                    v-if="editingSessionId !== session.id"
+                    class="edit-btn"
+                    @click.stop="startEditingTitle(session)"
+                  >
+                    <Icon name="edit" :size="14" />
+                  </button>
+                  <button
+                    class="delete-btn"
+                    @click.stop="confirmDeleteSession(session)"
+                  >
+                    <Icon name="trash" :size="16" />
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          </template>
         </div>
       </aside>
     </div>
@@ -57,12 +62,12 @@
     </button>
 
     <div class="main-content">
-      <div class="messages-container" ref="messagesContainer">
+      <div class="messages-container" ref="messagesContainer" @scroll.passive="onMessagesScroll">
         <div class="messages-list">
           <div v-if="!chatStore.currentSessionId" class="empty-state">
-            <div class="empty-state-icon">📄</div>
+            <div class="empty-state-icon">💬</div>
             <h2 class="empty-state-title">开始新对话</h2>
-            <p class="empty-state-subtitle">上传文档或输入问题，让 AI 为你解答</p>
+            <p class="empty-state-subtitle">输入问题，让 AI 为你解答</p>
           </div>
 
           <template v-else>
@@ -71,29 +76,59 @@
               :key="message.id"
               :class="['message', message.role.toLowerCase()]"
             >
-              <div class="message-content">
-                <div class="message-text">
-                  <template v-if="isLastAssistantMessage(message, index) && chatStore.isStreaming">
-                    {{ chatStore.streamingContent }}<span class="streaming-cursor">▊</span>
-                  </template>
-                  <template v-else>
-                    {{ message.content }}
-                  </template>
-                </div>
-                <div class="message-time">{{ formatTime(message.createdAt) }}</div>
-                <div v-if="message.role === 'ASSISTANT'" class="message-actions-footer">
-                  <button class="action-copy-btn" @click="copyMessage(message.content)">
-                    <Icon name="copy" :size="14" /> 复制
-                  </button>
-                </div>
+              <div class="message-content" :class="{ 'message-content--assistant': message.role === 'ASSISTANT' }">
+                <template v-if="message.role === 'ASSISTANT'">
+                  <AssistantMessageCard>
+                    <MarkdownRenderer
+                      :content="message.content"
+                      :is-streaming="chatStore.isStreaming && isLastAssistantMessage(index)"
+                    />
+                    <template #footer>
+                      <div class="message-meta-row message-meta-row--assistant">
+                        <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+                        <button type="button" class="action-copy-btn" @click="copyMessage(message.content)">
+                          <Icon name="copy" :size="14" />
+                        </button>
+                      </div>
+                    </template>
+                  </AssistantMessageCard>
+                </template>
+                <template v-else>
+                  <div class="message-user-stack">
+                    <div class="message-text">
+                      {{ message.content }}
+                    </div>
+                    <div class="message-meta-row message-meta-row--user">
+                      <button type="button" class="action-copy-btn" @click="copyMessage(message.content)">
+                        <Icon name="copy" :size="14" />
+                      </button>
+                      <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
 
             <div v-if="chatStore.isSending && !chatStore.isStreaming" class="message assistant">
-              <div class="message-content">
-                <div class="typing-indicator">
-                  <span></span><span></span><span></span>
-                </div>
+              <div class="message-content message-content--assistant">
+                <AssistantMessageCard>
+                  <div class="typing-indicator">
+                    <span></span><span></span><span></span>
+                  </div>
+                </AssistantMessageCard>
+              </div>
+            </div>
+
+            <div v-if="chatStore.streamError" class="message assistant">
+              <div class="message-content message-content--assistant">
+                <AssistantMessageCard>
+                  <div class="message-text stream-error-text">
+                    <Icon name="warning" :size="16" /> {{ chatStore.streamError }}
+                  </div>
+                  <template #footer>
+                    <button class="action-dismiss-btn" @click="chatStore.clearStreamError()">知道了</button>
+                  </template>
+                </AssistantMessageCard>
               </div>
             </div>
           </template>
@@ -101,65 +136,26 @@
       </div>
     </div>
 
-    <div class="upload-panel" :class="{ collapsed: uploadCollapsed }">
-      <button class="upload-toggle-btn" @click="toggleUpload" :title="uploadCollapsed ? '展开上传面板' : '收起上传面板'">
-        <Icon :name="uploadCollapsed ? 'panelRightOpen' : 'panelRightClose'" :size="14" />
-      </button>
-      <div v-if="!uploadCollapsed" class="upload-content-wrapper">
-        <div class="upload-header">
-          <h3>上传文件</h3>
+    <div class="chat-input-floating">
+      <div class="chat-input-floating-column">
+        <div class="chat-scroll-above-input">
+          <ScrollToBottom :container="messagesContainer" />
         </div>
-
-        <div class="upload-content">
-          <label class="upload-area">
-            <input
-              type="file"
-              @change="handleFileSelect"
-              accept=".pdf,.doc,.docx,.txt,.md"
-            />
-            <Icon name="upload" :size="32" />
-            <p>点击或拖拽文件</p>
-            <p class="hint">支持 PDF, DOC, DOCX, TXT, MD</p>
-          </label>
-
-          <div v-if="uploadProgress > 0" class="progress-bar">
-            <div class="progress-fill" :style="{ width: `${uploadProgress}%` }"></div>
-            <span>{{ uploadProgress }}%</span>
+        <div class="chat-input-container">
+          <div class="input-field">
+            <textarea
+              v-model="inputMessage"
+              class="input-textarea"
+              placeholder="输入您的问题..."
+              rows="1"
+              @keydown.enter.exact.prevent="sendMessage"
+              @input="adjustHeight"
+              ref="textareaRef"
+            ></textarea>
           </div>
 
-          <div v-if="uploadedFiles.length > 0" class="uploaded-files">
-            <div class="uploaded-files-header">
-              <h4>已上传文件</h4>
-              <router-link to="/documents" class="view-all-link">查看全部 →</router-link>
-            </div>
-            <DocumentProgress
-              v-for="file in uploadedFiles"
-              :key="file.id"
-              :document="file"
-              :refresh-fn="() => refreshFileStatus(file)"
-              @remove="removeUploadedFile"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="chat-input-wrapper" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
-      <div class="chat-input-container">
-        <div class="input-field">
-          <textarea
-            v-model="inputMessage"
-            class="input-textarea"
-            placeholder="输入您的问题..."
-            rows="1"
-            @keydown.enter.exact.prevent="sendMessage"
-            @input="adjustHeight"
-            ref="textareaRef"
-          ></textarea>
-        </div>
-
-        <div class="bottom-toolbar">
-          <div class="model-switch-wrapper" ref="modelSwitchRef">
+          <div class="bottom-toolbar">
+            <div class="model-switch-wrapper" ref="modelSwitchRef">
             <button
               class="toolbar-btn model-switch-btn"
               :class="{ active: showModelMenu }"
@@ -203,32 +199,59 @@
                 </div>
               </div>
             </Transition>
-          </div>
+            </div>
 
-          <button
+            <button
             class="toolbar-btn deep-think-btn"
             :class="{ active: isDeepThinking }"
             @click="isDeepThinking = !isDeepThinking"
             type="button"
           >
             <span>深度思考</span>
-          </button>
-
-          <Transition name="fade">
-            <button
-              v-if="inputMessage.trim()"
-              class="send-btn"
-              @click="sendMessage"
-              type="button"
-            >
-              <Icon name="arrowUp" class="send-icon" :size="18" />
             </button>
-          </Transition>
+
+            <Transition name="fade">
+              <button
+                v-if="chatStore.isStreaming"
+                class="stop-btn"
+                @click="chatStore.stopStreaming"
+                type="button"
+              >
+                <Icon name="stop" class="stop-icon" :size="18" />
+              </button>
+              <button
+                v-else-if="inputMessage.trim()"
+                class="send-btn"
+                @click="sendMessage"
+                type="button"
+              >
+                <Icon
+                  name="send"
+                  class="send-icon"
+                  :size="18"
+                  fill="currentColor"
+                  stroke="none"
+                  :stroke-width="0"
+                />
+              </button>
+            </Transition>
+          </div>
         </div>
       </div>
     </div>
 
     <ModelsModal v-model="showModelsModal" />
+
+    <ConfirmModal
+      v-model="showDeleteSessionModal"
+      title="删除对话"
+      :message="`确定要删除对话「${targetDeleteSession?.title || '新对话'}」吗？此操作不可撤销。`"
+      confirm-text="确定删除"
+      cancel-text="取消"
+      :is-destructive="true"
+      @confirm="handleConfirmDeleteSession"
+    />
+
   </div>
 </template>
 
@@ -239,11 +262,13 @@ import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { useToastStore } from '@/stores/toast'
 import { useModelsStore } from '@/stores/models'
-import { documentApi } from '@/api'
 import { Icon } from '@/components/icons'
 import { ModelsModal } from '@/components/models'
-import DocumentProgress from '@/components/DocumentProgress.vue'
-import type { Document, ChatSession } from '@/types'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import AssistantMessageCard from '@/components/AssistantMessageCard.vue'
+import ScrollToBottom from '@/components/ScrollToBottom.vue'
+import type { ChatSession } from '@/types'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -257,35 +282,67 @@ const menuRef = ref<HTMLElement>()
 const modelSwitchRef = ref<HTMLElement>()
 const titleInputRef = ref<HTMLInputElement>()
 const inputMessage = ref('')
-const uploadProgress = ref(0)
-const uploadedFiles = ref<Document[]>([])
 const editingSessionId = ref<number | null>(null)
 const editingTitle = ref('')
 const showModelMenu = ref(false)
 const showModelsModal = ref(false)
 const isUserNearBottom = ref(true)
 const sidebarCollapsed = ref<boolean>(localStorage.getItem('sidebar-collapsed') === 'true')
-const uploadCollapsed = ref<boolean>(localStorage.getItem('upload-collapsed') === 'true')
 const isDeepThinking = ref(false)
 const switchingModelId = ref<number | null>(null)
+const showDeleteSessionModal = ref(false)
+const targetDeleteSession = ref<ChatSession | null>(null)
+const isComponentMounted = ref(true)
+let scrollBottomRaf = 0
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
   localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed.value))
 }
 
-function toggleUpload() {
-  uploadCollapsed.value = !uploadCollapsed.value
-  localStorage.setItem('upload-collapsed', String(uploadCollapsed.value))
-}
-
 const userId = userStore.user?.id
 
-watch(() => chatStore.messages, () => {
+interface SessionGroup {
+  label: string
+  sessions: ChatSession[]
+}
+
+const groupedSessions = computed<SessionGroup[]>(() => {
+  const now = new Date()
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+  const withinWeek: ChatSession[] = []
+  const withinMonth: ChatSession[] = []
+  const beforeMonth: ChatSession[] = []
+
+  const sorted = [...chatStore.sessions].sort((a, b) =>
+    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  )
+
+  for (const session of sorted) {
+    const updatedAt = new Date(session.updatedAt)
+    if (updatedAt >= oneWeekAgo) {
+      withinWeek.push(session)
+    } else if (updatedAt >= oneMonthAgo) {
+      withinMonth.push(session)
+    } else {
+      beforeMonth.push(session)
+    }
+  }
+
+  return [
+    { label: '一周内', sessions: withinWeek },
+    { label: '一周前', sessions: withinMonth },
+    { label: '一月前', sessions: beforeMonth }
+  ]
+})
+
+const stopMessagesWatch = watch(() => chatStore.messages, () => {
   smartScrollToBottom()
 }, { deep: true })
 
-watch(() => chatStore.streamingContent, () => {
+const stopStreamingWatch = watch(() => chatStore.streamingContent, () => {
   smartScrollToBottom()
 })
 
@@ -310,7 +367,45 @@ async function sendMessage() {
   inputMessage.value = ''
   showModelMenu.value = false
   nextTick(adjustHeight)
-  await chatStore.sendMessageStream(content)
+  try {
+    const currentUserId = userStore.user?.id
+    if (!currentUserId) {
+      toastStore.error('请先登录')
+      return
+    }
+    if (!chatStore.currentSessionId) {
+      const sessionId = await chatStore.createSession()
+      if (!sessionId) {
+        toastStore.error('创建对话失败，请重试')
+        return
+      }
+    }
+    isUserNearBottom.value = true
+    await chatStore.sendMessageStream(content)
+  } catch (error) {
+    console.error('[ChatPage] sendMessage error:', error)
+    const err = error as any
+    if (err?.status) {
+      if (err.status === 401 || err.status === 403) {
+        toastStore.error('登录已过期，请重新登录')
+      } else if (err.status === 404) {
+        toastStore.error('会话不存在，请刷新页面重试')
+      } else if (err.status >= 500) {
+        toastStore.error('服务器内部错误，请稍后重试')
+      } else {
+        toastStore.error(err.message || '请求失败')
+      }
+    } else {
+      const errMsg = err instanceof Error ? err.message : '发送失败'
+      if (errMsg.includes('missing userId') || errMsg.includes('missing sessionId')) {
+        toastStore.error('会话状态异常，请刷新页面')
+      } else if (errMsg.includes('fetch') || errMsg.includes('network') || errMsg.includes('Failed to fetch')) {
+        toastStore.error('网络连接失败，请检查网络')
+      } else {
+        toastStore.error(errMsg)
+      }
+    }
+  }
 }
 
 function handleSendOrStop() {
@@ -321,46 +416,9 @@ function handleSendOrStop() {
   }
 }
 
-function isLastAssistantMessage(message: any, index: number): boolean {
-  return message.role === 'ASSISTANT' && index === chatStore.messages.length - 1
-}
-
-async function handleFileSelect(event: Event) {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
-
-  try {
-    const response = await documentApi.upload(file) as any
-    const doc = {
-      ...response,
-      status: response.status || 'UPLOADING'
-    }
-    uploadedFiles.value.unshift(doc)
-    toastStore.success('文件已提交处理')
-  } catch (error) {
-    toastStore.error('文件上传失败')
-  }
-}
-
 function handleLogout() {
   userStore.logout()
   router.push('/')
-}
-
-async function refreshFileStatus(file: Document) {
-  try {
-    const updated = await documentApi.getDetail(file.id)
-    const idx = uploadedFiles.value.findIndex(f => f.id === file.id)
-    if (idx >= 0 && updated) {
-      uploadedFiles.value[idx] = { ...updated }
-    }
-  } catch {
-  }
-}
-
-function removeUploadedFile(id: number) {
-  uploadedFiles.value = uploadedFiles.value.filter(f => f.id !== id)
 }
 
 function toggleModelMenu() {
@@ -383,6 +441,23 @@ async function selectModel(model: any) {
     console.error('Failed to switch model', error)
   } finally {
     switchingModelId.value = null
+  }
+}
+
+function confirmDeleteSession(session: ChatSession) {
+  targetDeleteSession.value = session
+  showDeleteSessionModal.value = true
+}
+
+async function handleConfirmDeleteSession() {
+  if (!targetDeleteSession.value) return
+  try {
+    await chatStore.deleteSession(targetDeleteSession.value.id)
+    toastStore.success('对话已删除')
+  } catch (error) {
+    toastStore.error('删除失败，请稍后重试')
+  } finally {
+    targetDeleteSession.value = null
   }
 }
 
@@ -411,35 +486,90 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (userId) {
     chatStore.setUserId(userId)
-    chatStore.loadSessions()
+    await chatStore.loadSessions()
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = 999999
+    }
+    await chatStore.restoreLastSession()
+    scrollToBottomImmediate()
     modelStore.loadModels(userId)
   }
   document.addEventListener('click', handleClickOutside)
 })
 
 onBeforeUnmount(() => {
+  isComponentMounted.value = false
+  if (scrollBottomRaf) cancelAnimationFrame(scrollBottomRaf)
+  scrollBottomRaf = 0
+  stopMessagesWatch()
+  stopStreamingWatch()
   document.removeEventListener('click', handleClickOutside)
 })
 
+function onMessagesScroll() {
+  const container = messagesContainer.value
+  if (!container) return
+  const threshold = 150
+  const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+  isUserNearBottom.value = distanceFromBottom < threshold
+}
+
 function smartScrollToBottom() {
   nextTick(() => {
-    if (!messagesContainer.value) return
-    const container = messagesContainer.value
-    const threshold = 100
-    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-    isUserNearBottom.value = distanceFromBottom < threshold
-    if (isUserNearBottom.value) {
-      container.scrollTop = container.scrollHeight
-    }
+    if (scrollBottomRaf) cancelAnimationFrame(scrollBottomRaf)
+    scrollBottomRaf = requestAnimationFrame(() => {
+      scrollBottomRaf = 0
+      if (!isComponentMounted.value) return
+      if (!messagesContainer.value) return
+      const container = messagesContainer.value
+      const threshold = 150
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+
+      if (chatStore.isStreaming) {
+        if (isUserNearBottom.value || distanceFromBottom < threshold) {
+          container.scrollTop = container.scrollHeight
+        }
+      } else {
+        isUserNearBottom.value = distanceFromBottom < threshold
+        if (isUserNearBottom.value) {
+          container.scrollTop = container.scrollHeight
+        }
+      }
+    })
   })
 }
 
-function handleSwitchSession(sessionId: number) {
+async function handleSwitchSession(sessionId: number) {
   chatStore.stopStreaming()
-  chatStore.switchSession(sessionId)
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = 999999
+  }
+  await chatStore.switchSession(sessionId)
+  scrollToBottomImmediate()
+}
+
+function scrollToBottomImmediate() {
+  nextTick(() => {
+    if (!messagesContainer.value) return
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  })
+}
+
+function scrollToBottomSmooth() {
+  nextTick(() => {
+    if (!messagesContainer.value) return
+    messagesContainer.value.scrollTo({
+      top: messagesContainer.value.scrollHeight,
+      behavior: 'smooth'
+    })
+  })
+}
+
+function isLastAssistantMessage(index: number): boolean {
+  return index === chatStore.messages.length - 1 && chatStore.messages[index]?.role === 'ASSISTANT'
 }
 
 function formatTime(dateString: string) {
@@ -497,129 +627,171 @@ async function copyMessage(content: string) {
   height: calc(100vh - 56px);
   display: flex;
   overflow: hidden;
-  background: #faf9f7;
+  background: var(--chat-canvas-bg);
+  /* 收起时勿把 --sidebar-gutter 置 0，避免与 width 过渡不同步 */
+  --sidebar-gutter: 8px;
+  --sidebar-area: calc(var(--sidebar-gutter) + var(--sidebar-width) + var(--sidebar-gutter));
+  --sidebar-animate-duration: 300ms;
+  --sidebar-animate-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-/* ========== Sidebar Wrapper & Toggle ========== */
+.chat-page.sidebar-collapsed {
+  --sidebar-area: 0px;
+}
+
+/* ========== Sidebar：窄卡片 + 仅水平展开（wrapper 宽度裁切，无 scale/纵向位移） ========== */
 .sidebar-wrapper {
   position: relative;
   flex-shrink: 0;
-}
-
-.sidebar {
-  width: var(--sidebar-width);
+  width: var(--sidebar-area);
+  min-width: 0;
   height: 100%;
-  background: var(--bg-primary);
-  border-right: 1px solid var(--border-lighter);
-  display: flex;
-  flex-direction: column;
-  transition: transform var(--transition-normal), width var(--transition-normal);
+  overflow: hidden;
+  transition: width var(--sidebar-animate-duration) var(--sidebar-animate-ease);
   z-index: 10;
 }
 
+.sidebar {
+  box-sizing: border-box;
+  width: var(--sidebar-width);
+  height: calc(100% - var(--sidebar-gutter) * 2);
+  margin: var(--sidebar-gutter) 0 var(--sidebar-gutter) var(--sidebar-gutter);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-lighter);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .chat-page.sidebar-collapsed .sidebar {
-  transform: translateX(-100%);
-  width: 0;
-  overflow: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sidebar {
+    border-color: var(--border-light);
+    box-shadow: var(--shadow-lg);
+  }
 }
 
 .sidebar-header {
-  padding: 12px 16px;
+  flex-shrink: 0;
+  padding: 14px 12px 10px;
 }
 
 .new-chat-btn {
   width: 100%;
-  padding: 10px 16px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-light);
-  border-radius: 20px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
+  padding: 10px 14px;
+  background: var(--btn-primary-bg);
+  border: 2px solid var(--btn-primary-bg);
+  border-radius: 999px;
+  color: var(--btn-primary-text);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), filter var(--transition-fast), opacity var(--transition-fast);
 }
 
 .new-chat-btn:hover {
-  background: var(--bg-secondary);
-  border-color: #d0d0d0;
+  background: var(--btn-primary-bg-hover);
+  border-color: var(--btn-primary-bg-hover);
+  filter: none;
+}
+
+.new-chat-btn:active {
+  opacity: 0.9;
 }
 
 /* ========== Sidebar Sessions List ========== */
 .sidebar-sessions {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 4px 0;
+  overflow-x: hidden;
+  padding: 4px 10px 14px;
+}
+
+.session-group {
+  margin-bottom: 8px;
+}
+
+.session-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  padding: 8px 10px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .session-item {
-  padding: 10px 16px;
-  margin: 2px 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  gap: 8px;
   border-radius: var(--radius-md);
+  border: 1px solid transparent;
   cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: background var(--transition-fast);
+  min-height: 42px;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .session-item:hover {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
 }
 
 .session-item.active {
   background: var(--color-active-bg);
-}
-
-.session-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 4px;
-  bottom: 4px;
-  width: 3px;
-  background: var(--color-accent);
-  border-radius: 0 2px 2px 0;
+  border-color: var(--border-light);
 }
 
 .session-item.active .session-title {
-  color: var(--color-active-text);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .session-title {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--text-primary);
+  font-weight: 500;
 }
 
 .session-title-input {
   flex: 1;
-  font-size: 14px;
+  min-width: 0;
+  font-size: 13px;
   color: var(--text-primary);
   border-radius: var(--radius-sm);
-  padding: 4px 8px;
+  padding: 6px 10px;
   outline: none;
-  background: white;
-  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  border: 2px solid var(--border-light);
+  font-weight: 500;
+  transition: border-color var(--transition-fast);
 }
 
 .session-title-input:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.08);
 }
 
 .session-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+  align-items: center;
   opacity: 0;
   transition: opacity 0.15s ease;
   flex-shrink: 0;
@@ -631,18 +803,18 @@ async function copyMessage(content: string) {
 
 .edit-btn,
 .delete-btn {
-  padding: 4px;
+  padding: 6px;
   background: none;
   border: none;
   color: var(--text-tertiary);
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .edit-btn:hover {
   background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .delete-btn:hover {
@@ -653,21 +825,24 @@ async function copyMessage(content: string) {
 /* ========== Sidebar Toggle Button ========== */
 .sidebar-toggle-btn {
   position: absolute;
-  left: calc(var(--sidebar-width) + 4px);
-  top: 15px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-sm);
+  left: calc(var(--sidebar-area) + 4px);
+  top: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  border: 2px solid var(--border-light);
+  box-shadow: none;
   cursor: pointer;
   z-index: 11;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  transition: left var(--transition-normal), background var(--transition-fast), color var(--transition-fast);
+  transition:
+    left var(--sidebar-animate-duration) var(--sidebar-animate-ease),
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .chat-page.sidebar-collapsed .sidebar-toggle-btn {
@@ -685,14 +860,18 @@ async function copyMessage(content: string) {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #faf9f7;
+  min-height: 0;
+  background: var(--chat-canvas-bg);
+  contain: layout style;
 }
 
 /* ========== Messages Container ========== */
 .messages-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--space-lg) var(--space-md);
+  padding-left: calc(var(--space-md) + var(--chat-pad-left-extra));
   padding-bottom: 160px;
 }
 
@@ -735,7 +914,7 @@ async function copyMessage(content: string) {
 /* ========== Message Bubbles ========== */
 .message {
   display: flex;
-  margin-bottom: var(--space-lg);
+  margin-bottom: 28px;
 }
 
 .message.user {
@@ -746,72 +925,95 @@ async function copyMessage(content: string) {
   justify-content: flex-start;
 }
 
-.message-avatar {
-  display: none;
+.message-content {
+  max-width: var(--message-max-width);
+  width: 100%;
 }
 
-.message-content {
-  max-width: 72%;
+.message-content--assistant {
+  max-width: var(--message-max-width);
 }
 
 .message.user .message-content {
+  max-width: 70%;
   text-align: right;
+}
+
+.message-user-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 100%;
+  vertical-align: top;
 }
 
 .message-text {
   padding: 12px 16px;
-  line-height: 1.6;
-  font-size: 15px;
+  line-height: 1.7;
+  font-size: 16px;
   word-wrap: break-word;
   display: inline-block;
 }
 
 .message.user .message-text {
-  background: var(--bubble-user-bg);
-  color: var(--bubble-user-text);
-  border-radius: 18px 4px 18px 18px;
-  box-shadow: var(--shadow-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+  box-shadow: none;
 }
 
 .message.assistant .message-text {
-  background: var(--bubble-assistant-bg);
-  color: var(--bubble-assistant-text);
-  border-radius: 4px 18px 18px 18px;
-  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  padding: 0;
+  display: block;
+  width: 100%;
+  text-align: left;
 }
 
 .message-time {
   font-size: 12px;
+  line-height: 1.4;
   color: var(--text-tertiary);
-  margin-top: 6px;
+  margin-top: 0;
+  white-space: nowrap;
 }
 
-/* ========== Message Actions Footer (Assistant only) ========== */
-.message-actions-footer {
+/* 时间与复制同一行；助手：时间左、复制右；用户：复制左、时间右（整行贴右对齐） */
+.message-meta-row {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  padding-left: 4px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  min-height: 24px;
 }
 
-.message.assistant:hover .message-actions-footer {
-  opacity: 1;
+.message-meta-row--assistant {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.message-meta-row--user {
+  justify-content: flex-end;
+  width: 100%;
+  align-self: stretch;
 }
 
 .action-copy-btn {
-  padding: 4px 10px;
+  padding: 2px 8px;
+  min-height: 24px;
+  box-sizing: border-box;
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   font-size: 12px;
+  line-height: 1.4;
   color: var(--text-tertiary);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .action-copy-btn:hover {
@@ -824,6 +1026,12 @@ async function copyMessage(content: string) {
   display: flex;
   gap: 4px;
   padding: 16px;
+}
+
+.message-content--assistant .typing-indicator {
+  padding: 4px 0;
+  min-height: 28px;
+  align-items: center;
 }
 
 .typing-indicator span {
@@ -849,51 +1057,93 @@ async function copyMessage(content: string) {
   }
 }
 
-/* ========== Streaming Cursor Animation ========== */
-.streaming-cursor {
-  display: inline-block;
-  color: var(--text-primary);
-  font-weight: 400;
-  margin-left: 1px;
-  animation: blink-cursor 0.8s step-end infinite;
+.stream-error-text {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-@keyframes blink-cursor {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+.action-dismiss-btn {
+  margin-top: 8px;
+  padding: 4px 14px;
+  background: transparent;
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-/* ========== Floating Chat Input ========== */
-.chat-input-wrapper {
+.action-dismiss-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+/* ========== 悬浮输入框（顶层，无底部遮罩条） ========== */
+.chat-input-floating {
   position: fixed;
-  bottom: 24px;
-  left: 280px;
-  right: 264px;
+  z-index: 100;
+  left: var(--sidebar-area);
+  right: 0;
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding-left: calc(var(--space-md) + var(--chat-pad-left-extra) - 14px);
+  padding-right: var(--space-md);
+  box-sizing: border-box;
+  pointer-events: none;
+  transition: left var(--sidebar-animate-duration) var(--sidebar-animate-ease);
+}
+
+.chat-input-floating-column {
+  pointer-events: none;
+  width: 100%;
+  max-width: var(--message-max-width);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.chat-scroll-above-input {
+  pointer-events: auto;
   display: flex;
   justify-content: center;
-  padding: 0 24px;
-  pointer-events: none;
-  z-index: 50;
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
 }
 
-.chat-page.sidebar-collapsed .chat-input-wrapper {
-  left: 72px;
-}
-
-.chat-page.upload-collapsed .chat-input-wrapper {
-  right: 24px;
+.chat-page.sidebar-collapsed .chat-input-floating {
+  left: 0;
 }
 
 .chat-input-container {
   position: relative;
   width: 100%;
-  max-width: 816px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 24px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  max-width: var(--message-max-width);
   pointer-events: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-lighter);
+  border-radius: var(--chat-input-radius);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.05),
+    0 6px 20px -4px rgba(0, 0, 0, 0.07);
+  /* 不可 overflow:hidden：模型下拉向上展开会被裁切 */
+  overflow: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chat-input-container {
+    border-color: var(--border-light);
+    box-shadow:
+      0 2px 16px rgba(0, 0, 0, 0.35),
+      0 8px 28px -6px rgba(0, 0, 0, 0.45);
+  }
 }
 
 .input-field {
@@ -929,7 +1179,7 @@ async function copyMessage(content: string) {
   align-items: center;
   gap: 8px;
   padding: 8px 16px 12px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--border-lighter);
 }
 
 .toolbar-btn {
@@ -937,29 +1187,29 @@ async function copyMessage(content: string) {
   align-items: center;
   justify-content: center;
   padding: 8px 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
+  border: 1px solid var(--border-lighter);
+  border-radius: 999px;
   background: transparent;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .toolbar-btn:hover:not(:disabled):not(.active) {
-  background: #f9fafb;
-  color: #374151;
-  border-color: #d1d5db;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-light);
 }
 
 .toolbar-btn:hover:not(:disabled).active {
-  background: #dbeafe;
-  color: #1d4ed8;
-  border-color: #2563eb;
+  background: var(--color-active-bg);
+  color: var(--color-active-text);
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--border-light));
 }
 
 .toolbar-btn:active:not(:disabled) {
-  transform: scale(0.98);
+  filter: brightness(0.96);
 }
 
 .toolbar-btn:disabled {
@@ -968,48 +1218,81 @@ async function copyMessage(content: string) {
 }
 
 .toolbar-btn.active {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #3b82f6;
+  background: var(--color-active-bg);
+  color: var(--color-active-text);
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--border-light));
 }
 
 .model-switch-wrapper {
   position: relative;
+  z-index: 20;
+}
+
+.send-btn,
+.stop-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  border-style: solid;
+  border-width: 1px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .send-btn {
-  margin-left: auto;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: #000000;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+  border-color: var(--btn-primary-bg);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
 .send-btn:hover:not(:disabled) {
-  background: #333333;
-  transform: scale(1.05);
+  background: var(--btn-primary-bg-hover);
+  border-color: var(--btn-primary-bg-hover);
+  filter: none;
 }
 
 .send-btn:active:not(:disabled) {
-  transform: scale(0.95);
+  filter: brightness(0.94);
 }
 
 .send-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
+.stop-btn {
+  border-color: var(--btn-danger-bg);
+  background: var(--btn-danger-bg);
+  color: var(--btn-danger-text);
+}
+
+.stop-btn:hover:not(:disabled) {
+  background: var(--btn-danger-bg-hover);
+  border-color: var(--btn-danger-bg-hover);
+  filter: none;
+}
+
+.stop-btn:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.send-btn :deep(svg),
+.stop-btn :deep(svg) {
+  display: block;
+  flex-shrink: 0;
+}
+
+.stop-icon,
 .send-icon {
-  width: 18px;
-  height: 18px;
-  color: #ffffff;
+  color: inherit;
 }
 
 .dropdown-menu {
@@ -1017,24 +1300,26 @@ async function copyMessage(content: string) {
   bottom: calc(100% + 8px);
   left: 0;
   width: 280px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-lighter);
+  border-radius: 18px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 12px 32px -8px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  z-index: 100;
+  z-index: 300;
 }
 
 .menu-header {
   padding: 12px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  background: #fafafa;
+  border-bottom: 1px solid var(--border-lighter);
+  background: var(--bg-secondary);
 }
 
 .menu-title {
   font-size: 13px;
   font-weight: 600;
-  color: #333333;
+  color: var(--text-primary);
 }
 
 .menu-list {
@@ -1046,7 +1331,7 @@ async function copyMessage(content: string) {
   padding: 24px 16px;
   text-align: center;
   font-size: 13px;
-  color: #9ca3af;
+  color: var(--text-tertiary);
 }
 
 .menu-item {
@@ -1063,7 +1348,7 @@ async function copyMessage(content: string) {
 }
 
 .menu-item:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--bg-tertiary);
 }
 
 .menu-item:disabled {
@@ -1072,7 +1357,7 @@ async function copyMessage(content: string) {
 }
 
 .menu-item.active {
-  background: #eff6ff;
+  background: var(--color-active-bg);
 }
 
 .model-info {
@@ -1086,7 +1371,7 @@ async function copyMessage(content: string) {
 .model-name {
   font-size: 14px;
   font-weight: 500;
-  color: #333333;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1094,21 +1379,21 @@ async function copyMessage(content: string) {
 
 .model-provider {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-tertiary);
 }
 
 .check-icon {
   width: 20px;
   height: 20px;
-  color: #3b82f6;
+  color: var(--color-accent);
   flex-shrink: 0;
 }
 
 .loading-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid #e5e7eb;
-  border-top-color: #3b82f6;
+  border: 2px solid var(--border-lighter);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   flex-shrink: 0;
@@ -1122,192 +1407,16 @@ async function copyMessage(content: string) {
 
 .menu-divider {
   height: 1px;
-  background: #f3f4f6;
+  background: var(--border-lighter);
   margin: 4px 0;
 }
 
 .add-model-item {
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .add-model-item:hover {
-  color: #1a1a1a;
-}
-
-/* ========== Upload Panel ========== */
-.upload-panel {
-  position: relative;
-  width: 240px;
-  background: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  margin-left: 12px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  transition: width var(--transition-normal), margin-left var(--transition-normal);
-}
-
-.upload-panel.collapsed {
-  width: 0;
-  margin-left: 0;
-  overflow: hidden;
-}
-
-.upload-toggle-btn {
-  position: absolute;
-  right: calc(100% + 4px);
-  top: 15px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  z-index: 11;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  transition: right var(--transition-normal), background var(--transition-fast), color var(--transition-fast);
-}
-
-.chat-page.upload-collapsed .upload-toggle-btn {
-  right: 8px;
-}
-
-.upload-toggle-btn:hover {
-  background: var(--bg-primary);
   color: var(--text-primary);
-}
-
-.upload-content-wrapper {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.upload-header {
-  padding: 20px;
-}
-
-.upload-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.upload-content {
-  padding: 0 20px 20px;
-}
-
-.upload-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
-  border: 1.5px dashed var(--border-light);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.upload-area:hover {
-  background: rgba(0, 0, 0, 0.02);
-  border-color: var(--color-accent);
-}
-
-.upload-area p {
-  margin-top: 12px;
-  font-size: 14px;
-}
-
-.upload-area .hint {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.upload-area input {
-  display: none;
-}
-
-.progress-bar {
-  margin-top: 16px;
-  height: 8px;
-  background: var(--bg-tertiary);
-  border-radius: 4px;
-  position: relative;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--text-primary);
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.progress-bar span {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 11px;
-  font-weight: 500;
-  color: white;
-}
-
-.uploaded-files {
-  margin-top: 24px;
-}
-
-.uploaded-files-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.uploaded-files h4 {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.view-all-link {
-  font-size: 12px;
-  color: var(--text-secondary);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
-
-.view-all-link:hover {
-  color: var(--text-primary);
-}
-
-.file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.file-item span {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ========== Menu Transition ========== */

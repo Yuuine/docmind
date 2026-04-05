@@ -254,8 +254,8 @@ async function handleRetry() {
 }
 
 .step-dot.active {
-  background: #1a1a1a;
-  color: white;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
 .step-dot.pending {
@@ -281,7 +281,7 @@ async function handleRetry() {
 }
 
 .step-line.active {
-  background: linear-gradient(90deg, #16a34a 0%, #1a1a1a 100%);
+  background: linear-gradient(90deg, #16a34a 0%, var(--btn-primary-bg) 100%);
 }
 
 .step-line.pending {
@@ -293,7 +293,7 @@ async function handleRetry() {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: rgba(26, 26, 26, 0.3);
+  background: color-mix(in srgb, var(--btn-primary-bg) 35%, transparent);
   animation: pulse 1.5s ease-out infinite;
 }
 
@@ -324,7 +324,7 @@ async function handleRetry() {
 
 .step-label.completed,
 .step-label.active {
-  color: #1a1a1a;
+  color: var(--text-primary);
   font-weight: 500;
 }
 

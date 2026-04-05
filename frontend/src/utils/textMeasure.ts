@@ -1,4 +1,6 @@
-import { prepare, layout } from '@chenglou/pretext'
+import { measurePlainBlockHeight } from '@/utils/pretextLayout'
+
+export { CHAT_MARKDOWN_FONT, CHAT_LINE_HEIGHT_PX } from '@/utils/pretextLayout'
 
 export function measureTextHeight(
   text: string,
@@ -6,9 +8,7 @@ export function measureTextHeight(
   maxWidth: number,
   lineHeight: number
 ): number {
-  const prepared = prepare(text, font)
-  const { height } = layout(prepared, maxWidth, lineHeight)
-  return height
+  return measurePlainBlockHeight(text, maxWidth, font, lineHeight)
 }
 
 export function measureTextareaHeight(
@@ -17,9 +17,5 @@ export function measureTextareaHeight(
   width: number,
   lineHeight: number
 ): number {
-  const prepared = prepare(text, font, {
-    whiteSpace: 'pre-wrap',
-  })
-  const { height } = layout(prepared, width, lineHeight)
-  return height
+  return measurePlainBlockHeight(text, width, font, lineHeight, { whiteSpace: 'pre-wrap' })
 }

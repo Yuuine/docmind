@@ -337,7 +337,7 @@ async function handleSubmit() {
 }
 
 .form-group input:focus {
-  border-color: #1a1a1a;
+  border-color: var(--color-accent);
   background: white;
 }
 
@@ -379,16 +379,16 @@ async function handleSubmit() {
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: white;
-  background: #1a1a1a;
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-bg);
   cursor: pointer;
   transition: all 0.25s ease;
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: #333;
+  background: var(--btn-primary-bg-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--btn-primary-bg) 30%, transparent);
 }
 
 .btn-submit:active:not(:disabled) {
@@ -463,7 +463,7 @@ async function handleSubmit() {
 }
 
 .form-group select:focus {
-  border-color: #1a1a1a;
+  border-color: var(--color-accent);
   background: white;
 }
 
@@ -485,9 +485,9 @@ async function handleSubmit() {
 }
 
 .quick-btn:hover {
-  border-color: #1a1a1a;
-  color: #1a1a1a;
-  background: #faf9f7;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-active-bg);
 }
 
 /* 折叠动画 */

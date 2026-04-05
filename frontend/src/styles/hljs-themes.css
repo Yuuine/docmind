@@ -1,0 +1,6 @@
+/* highlight.js: light by default, GitHub dark inside prefers-color-scheme */
+@import 'highlight.js/styles/github.css';
+
+@media (prefers-color-scheme: dark) {
+  @import 'highlight.js/styles/github-dark.css';
+}

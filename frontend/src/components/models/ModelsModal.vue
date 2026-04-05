@@ -69,6 +69,16 @@
       </div>
     </Transition>
   </Teleport>
+
+  <ConfirmModal
+    v-model="showDeleteModelModal"
+    title="删除模型"
+    :message="`确定要删除模型「${targetDeleteModel?.name || ''}」吗？此操作不可撤销。`"
+    confirm-text="确定删除"
+    cancel-text="取消"
+    :is-destructive="true"
+    @confirm="executeDeleteModel"
+  />
 </template>
 
 <script setup lang="ts">
@@ -78,6 +88,7 @@ import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
 import { Icon } from '@/components/icons'
 import ModelForm from './ModelForm.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import type { AIModel } from '@/types'
 
 const props = defineProps<{
@@ -96,6 +107,8 @@ type ViewMode = 'list' | 'form'
 const currentView = ref<ViewMode>('list')
 const editingModel = ref<AIModel | null>(null)
 const formMode = ref<'create' | 'edit'>('create')
+const showDeleteModelModal = ref(false)
+const targetDeleteModel = ref<AIModel | null>(null)
 
 watch(
   () => props.modelValue,
@@ -136,8 +149,12 @@ async function onFormSubmit() {
 }
 
 function handleDelete(model: AIModel) {
-  const confirmed = window.confirm(`确定要删除模型「${model.name}」吗？此操作不可撤销。`)
-  if (!confirmed) return
+  targetDeleteModel.value = model
+  showDeleteModelModal.value = true
+}
+
+async function executeDeleteModel() {
+  if (!targetDeleteModel.value) return
 
   const userId = userStore.user?.id
   if (!userId) {
@@ -145,12 +162,15 @@ function handleDelete(model: AIModel) {
     return
   }
 
-  modelStore.deleteModel(model.id, userId).then(() => {
+  try {
+    await modelStore.deleteModel(targetDeleteModel.value.id, userId)
     toastStore.success('模型已删除')
-  }).catch((error: any) => {
+  } catch (error: any) {
     const message = error.response?.data?.message || '删除失败，请稍后重试'
     toastStore.error(message)
-  })
+  } finally {
+    targetDeleteModel.value = null
+  }
 }
 </script>
 

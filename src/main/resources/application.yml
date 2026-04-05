@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:classpath:rag-prompt.yml
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/docmind?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:root}
@@ -18,3 +20,11 @@ logging:
     yuuine.docmind: DEBUG
     org.springframework.web: INFO
     org.flywaydb: INFO
+
+chat:
+  rag:
+    thread-pool:
+      core-size: 4
+      max-size: 8
+      queue-capacity: 200
+      keep-alive-seconds: 60

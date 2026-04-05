@@ -77,7 +77,12 @@ export const chatApi = {
     return fetch(`/api/v1/chat/sessions/${id}/messages/stream?${params.toString()}`, {
       headers: { Accept: 'text/event-stream' }
     }).then(res => {
-      if (!res.ok || !res.body) throw new Error(`Stream request failed: ${res.status}`)
+      if (!res.ok || !res.body) {
+        const err: any = new Error(`Stream request failed: ${res.status}`)
+        err.status = res.status
+        err.statusText = res.statusText
+        throw err
+      }
       return res.body.getReader()
     })
   },

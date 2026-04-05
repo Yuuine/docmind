@@ -2,9 +2,9 @@ package yuuine.docmind.core.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import org.springframework.stereotype.Service;
 import yuuine.docmind.common.exception.BusinessException;
@@ -27,10 +27,11 @@ import yuuine.docmind.core.chat.service.PromptAssembler;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatService {
 
     private final ChatSessionRepository chatSessionRepository;
@@ -43,6 +44,33 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
     private final RerankPlugin rerankPlugin;
     private final PromptAssembler promptAssembler;
     private final RagPromptProperties ragPromptProperties;
+    private final Executor ragTaskExecutor;
+
+    public ChatServiceImpl(
+            ChatSessionRepository chatSessionRepository,
+            ChatMessageRepository chatMessageRepository,
+            AIModelRepository aiModelRepository,
+            ObjectMapper objectMapper,
+            LlmService llmService,
+            VectorStorePlugin vectorStorePlugin,
+            EmbeddingPlugin embeddingPlugin,
+            RerankPlugin rerankPlugin,
+            PromptAssembler promptAssembler,
+            RagPromptProperties ragPromptProperties,
+            @Qualifier("ragTaskExecutor") Executor ragTaskExecutor
+    ) {
+        this.chatSessionRepository = chatSessionRepository;
+        this.chatMessageRepository = chatMessageRepository;
+        this.aiModelRepository = aiModelRepository;
+        this.objectMapper = objectMapper;
+        this.llmService = llmService;
+        this.vectorStorePlugin = vectorStorePlugin;
+        this.embeddingPlugin = embeddingPlugin;
+        this.rerankPlugin = rerankPlugin;
+        this.promptAssembler = promptAssembler;
+        this.ragPromptProperties = ragPromptProperties;
+        this.ragTaskExecutor = ragTaskExecutor;
+    }
 
     @Override
     public ChatSessionResponse createSession(ChatSessionCreateRequest request, Long userId) {
@@ -143,7 +171,9 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
 
         StringBuilder accumulatedContent = new StringBuilder();
 
-        String context = retrieveContext(request.getContent(), chatMessages);
+        // TODO: 暂时简化，只发送用户当前消息，后续恢复完整的 RAG 流程和提示词构建
+        /*
+        String context = retrieveContext(request.getContent());
         final String finalContext = context;
 
         List<ChatMessage> historyMessages = new ArrayList<>(chatMessages);
@@ -165,33 +195,53 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 .content(msg.get("content"))
                 .build())
             .toList();
+        */
+
+        // 临时简化：只创建包含当前用户消息的列表
+        List<ChatMessage> llmMessages = new ArrayList<>();
+        llmMessages.add(ChatMessage.builder()
+            .role(MessageRole.USER)
+            .content(request.getContent())
+            .build());
+        final String finalContext = "";
 
         return llmService.streamChat(activeModel, llmMessages)
+            .doOnNext(chunk -> log.info("收到LlmChunk: content={}, done={}, error={}", 
+                chunk.getContent(), chunk.isDone(), chunk.getError()))
             .map(chunk -> {
                 if (chunk.getError() != null) {
                     try {
+                        String data = objectMapper.writeValueAsString(Map.of("error", chunk.getError()));
+                        log.info("发送SSE error: {}", data);
                         return ServerSentEvent.<String>builder()
-                            .data(objectMapper.writeValueAsString(Map.of("error", chunk.getError())))
+                            .data(data)
                             .build();
                     } catch (Exception e) {
+                        log.error("构造error SSE失败", e);
                         return ServerSentEvent.<String>builder().data("{\"error\":\"解析错误\"}").build();
                     }
                 }
                 if (chunk.isDone()) {
                     try {
+                        String data = objectMapper.writeValueAsString(Map.of("done", true));
+                        log.info("发送SSE done: {}", data);
                         return ServerSentEvent.<String>builder()
-                            .data(objectMapper.writeValueAsString(Map.of("done", true)))
+                            .data(data)
                             .build();
                     } catch (Exception e) {
+                        log.error("构造done SSE失败", e);
                         return ServerSentEvent.<String>builder().data("{\"done\":true}").build();
                     }
                 }
                 accumulatedContent.append(chunk.getContent());
                 try {
+                    String data = objectMapper.writeValueAsString(Map.of("content", chunk.getContent()));
+                    log.info("发送SSE content: {}", data);
                     return ServerSentEvent.<String>builder()
-                        .data(objectMapper.writeValueAsString(Map.of("content", chunk.getContent())))
+                        .data(data)
                         .build();
                 } catch (Exception e) {
+                    log.error("构造content SSE失败", e);
                     return ServerSentEvent.<String>builder().data("{\"content\":\"" + chunk.getContent() + "\"}").build();
                 }
             })
@@ -202,13 +252,26 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                                 .sessionId(request.getSessionId())
                                 .role(MessageRole.ASSISTANT)
                                 .content(accumulatedContent.toString())
-                                .retrievedDocs(finalContext.isEmpty() ? "[]" : objectMapper.writeValueAsString(
-                                    chatMessages.stream().map(ChatMessage::getContent).toList()))
+                                .retrievedDocs("[]")
                                 .build();
                         chatMessageRepository.insert(assistantMessage);
                     } catch (Exception e) {
                         log.error("保存助手消息失败, error={}", e.getMessage(), e);
                     }
+                }
+            })
+            .onErrorResume(e -> {
+                log.error("消息流处理异常, sessionId={}, error={}", request.getSessionId(), e.getMessage(), e);
+                try {
+                    return Flux.just(
+                        ServerSentEvent.<String>builder()
+                            .data(objectMapper.writeValueAsString(Map.of("error", "服务器内部错误: " + e.getMessage())))
+                            .build()
+                    );
+                } catch (Exception ex) {
+                    return Flux.just(
+                        ServerSentEvent.<String>builder().data("{\"error\":\"服务器内部错误\"}").build()
+                    );
                 }
             });
     }
@@ -260,13 +323,13 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         chatSessionRepository.deleteById(sessionId);
     }
 
-    private String retrieveContext(String query, List<ChatMessage> chatMessages) {
+    private String retrieveContext(String query) {
         try {
-            float[] queryEmbedding = embeddingPlugin.embed(query);
-            int topK = 5;
+            final int topK = 5;
+            CompletableFuture<float[]> embeddingFuture = CompletableFuture.supplyAsync(() -> embeddingPlugin.embed(query), ragTaskExecutor);
+            CompletableFuture<List<VectorStorePlugin.SearchResult>> searchFuture = embeddingFuture.thenApplyAsync(queryEmbedding -> vectorStorePlugin.search(query, queryEmbedding, topK), ragTaskExecutor);
 
-            List<VectorStorePlugin.SearchResult> searchResults =
-                vectorStorePlugin.search(query, queryEmbedding, topK);
+            List<VectorStorePlugin.SearchResult> searchResults = searchFuture.get();
 
             if (searchResults == null || searchResults.isEmpty()) {
                 return "";
@@ -296,7 +359,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
 
             return contextBuilder.toString().trim();
         } catch (Exception e) {
-            log.error("RAG检索失败, 降级为无RAG模式, error={}", e.getMessage(), e);
+            log.warn("RAG检索失败, 降级为无RAG模式, error={}", e.getMessage(), e);
             return "";
         }
     }

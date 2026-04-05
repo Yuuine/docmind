@@ -41,12 +41,11 @@ public class ModelConfigFactory {
         try {
             Map<String, Object> extraConfig = objectMapper.readValue(
                     extraConfigJson,
-                    new TypeReference<Map<String, Object>>() {}
+                    new TypeReference<>() {
+                    }
             );
             Map<String, Object> merged = new HashMap<>(baseRequest);
-            for (Map.Entry<String, Object> entry : extraConfig.entrySet()) {
-                merged.put(entry.getKey(), entry.getValue());
-            }
+            merged.putAll(extraConfig);
             return merged;
         } catch (Exception e) {
             log.warn("解析extraConfig失败, 使用原始请求体, error={}", e.getMessage());

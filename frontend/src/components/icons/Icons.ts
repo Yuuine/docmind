@@ -942,6 +942,11 @@ export const IconPaths = {
     <path d="M20 12h2"/>
   `,
 
+  // 发送（向上箭头，Remix 风格 fill）
+  send: `
+    <path d="M13 7.82843V20H11V7.82843L5.63614 13.1924L4.22192 11.7782L12 4L19.7783 11.7782L18.3641 13.1924L13 7.82843Z" fill="currentColor"/>
+  `,
+
   // 停止/方块
   stop: `
     <rect x="6" y="6" width="12" height="12" rx="2"/>
@@ -959,6 +964,12 @@ export const IconPaths = {
     <rect x="3" y="3" width="18" height="18" rx="2"/>
     <path d="M9 3v18"/>
     <path d="m9 9 3 3-3 3"/>
+  `,
+
+  // 箭头向下
+  arrowDown: `
+    <line x1="12" y1="5" x2="12" y2="19"/>
+    <polyline points="19 12 12 19 5 12"/>
   `
 } as const
 

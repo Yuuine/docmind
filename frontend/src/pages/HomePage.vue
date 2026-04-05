@@ -197,14 +197,14 @@ const handleLogout = () => {
 }
 
 .btn-primary {
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
 .btn-primary:hover {
-  background: #333;
+  background: var(--btn-primary-bg-hover);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--btn-primary-bg) 35%, transparent);
 }
 
 .btn-secondary {

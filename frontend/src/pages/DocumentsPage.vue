@@ -64,18 +64,15 @@
       <p class="empty-desc">上传您的第一个文档开始使用</p>
     </div>
 
-    <!-- 删除确认弹窗 -->
-    <Teleport to="body">
-      <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
-        <div class="modal-box">
-          <p class="modal-text">确定要删除文件「{{ deleteTarget.filename }}」吗？此操作不可撤销。</p>
-          <div class="modal-actions">
-            <button class="modal-btn modal-cancel" @click="deleteTarget = null">取消</button>
-            <button class="modal-btn modal-confirm" @click="executeDelete">确定删除</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <ConfirmModal
+      v-model="showDeleteDocModal"
+      title="删除文件"
+      :message="`确定要删除文件「${targetDeleteDoc?.filename || ''}」吗？此操作不可撤销。`"
+      confirm-text="确定删除"
+      cancel-text="取消"
+      :is-destructive="true"
+      @confirm="executeDelete"
+    />
   </div>
 </template>
 
@@ -85,6 +82,7 @@ import { documentApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
 import { Icon } from '@/components/icons'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import type { Document } from '@/types'
 
 const userStore = useUserStore()
@@ -94,7 +92,8 @@ const documents = ref<Document[]>([])
 const searchQuery = ref('')
 const uploadProgress = ref(0)
 const isUploading = ref(false)
-const deleteTarget = ref<Document | null>(null)
+const showDeleteDocModal = ref(false)
+const targetDeleteDoc = ref<Document | null>(null)
 const fileInputRef = ref<HTMLInputElement>()
 
 function formatFileSize(bytes: number): string {
@@ -176,18 +175,20 @@ function onDrop(e: DragEvent) {
 }
 
 function confirmDelete(doc: Document) {
-  deleteTarget.value = doc
+  targetDeleteDoc.value = doc
+  showDeleteDocModal.value = true
 }
 
 async function executeDelete() {
-  if (!deleteTarget.value) return
+  if (!targetDeleteDoc.value) return
   try {
-    await documentApi.delete(deleteTarget.value.id)
+    await documentApi.delete(targetDeleteDoc.value.id)
     toastStore.success('文件已删除')
-    deleteTarget.value = null
     await loadDocuments()
   } catch {
     toastStore.error('删除失败')
+  } finally {
+    targetDeleteDoc.value = null
   }
 }
 
@@ -226,21 +227,22 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 10px 20px;
-  background: #1a1a1a;
-  color: white;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
   border: none;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: transform var(--transition-fast),
-              box-shadow var(--transition-fast);
+              box-shadow var(--transition-fast),
+              background-color var(--transition-fast);
 }
 
 .upload-btn:hover {
-  background: #333;
+  background: var(--btn-primary-bg-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--btn-primary-bg) 30%, transparent);
 }
 
 .upload-btn:active {
@@ -324,7 +326,7 @@ onMounted(() => {
 
 .progress-fill {
   height: 100%;
-  background: #1a1a1a;
+  background: var(--btn-primary-bg);
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -471,73 +473,5 @@ onMounted(() => {
   font-size: 14px;
   color: #aaa;
   margin: 0;
-}
-
-/* 删除确认弹窗 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-box {
-  background: var(--glass-bg-heavy);
-  backdrop-filter: blur(var(--blur-lg)) saturate(1.25);
-  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(1.25);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-glass-lg);
-  border-radius: var(--radius-lg);
-  padding: 28px 32px;
-  max-width: 400px;
-  width: 90%;
-}
-
-.modal-text {
-  font-size: 15px;
-  color: #333;
-  line-height: 1.6;
-  margin: 0 0 24px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.modal-btn {
-  padding: 8px 18px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.modal-cancel {
-  background: #f5f5f5;
-  color: #555;
-}
-
-.modal-cancel:hover {
-  background: #ebebeb;
-}
-
-.modal-confirm {
-  background: #dc2626;
-  color: white;
-}
-
-.modal-confirm:hover {
-  background: #b91c1c;
 }
 </style>

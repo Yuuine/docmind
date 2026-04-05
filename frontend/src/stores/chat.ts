@@ -11,6 +11,8 @@ interface ChatState {
   isLoading: boolean
 }
 
+const LAST_SESSION_KEY = 'docmind-last-session-id'
+
 export const useChatStore = defineStore('chat', () => {
   const userId = ref<number | null>(null)
   const sessions = ref<ChatSession[]>([])
@@ -23,6 +25,7 @@ export const useChatStore = defineStore('chat', () => {
   const isStreaming = ref(false)
   const streamingContent = ref('')
   const abortController = ref<AbortController | null>(null)
+  const streamError = ref<string | null>(null)
 
   const currentSession = computed(() => {
     return sessions.value.find(s => s.id === currentSessionId.value) || null
@@ -30,6 +33,19 @@ export const useChatStore = defineStore('chat', () => {
 
   const setUserId = (id: number | null) => {
     userId.value = id
+  }
+
+  const saveLastSessionId = (sessionId: number | null) => {
+    if (sessionId) {
+      localStorage.setItem(LAST_SESSION_KEY, String(sessionId))
+    } else {
+      localStorage.removeItem(LAST_SESSION_KEY)
+    }
+  }
+
+  const getLastSessionId = (): number | null => {
+    const stored = localStorage.getItem(LAST_SESSION_KEY)
+    return stored ? parseInt(stored, 10) : null
   }
 
   const loadSessions = async () => {
@@ -49,6 +65,7 @@ export const useChatStore = defineStore('chat', () => {
       sessions.value.unshift(data)
       currentSessionId.value = data.id
       messages.value = []
+      saveLastSessionId(data.id)
       return data.id
     } catch (error) {
       console.error('Create session failed:', error)
@@ -73,12 +90,30 @@ export const useChatStore = defineStore('chat', () => {
     if (!userId.value) return
     currentSessionId.value = id
     messages.value = []
+    saveLastSessionId(id)
     try {
       const data = await chatApi.getMessages(id, userId.value)
       messages.value = data || []
     } catch (error) {
       console.error('Load messages failed:', error)
     }
+  }
+
+  const restoreLastSession = async () => {
+    if (!userId.value || sessions.value.length === 0) return false
+
+    const lastSessionId = getLastSessionId()
+    if (lastSessionId && sessions.value.some(s => s.id === lastSessionId)) {
+      await switchSession(lastSessionId)
+      return true
+    } else if (sessions.value.length > 0) {
+      const sorted = [...sessions.value].sort((a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )
+      await switchSession(sorted[0].id)
+      return true
+    }
+    return false
   }
 
   const deleteSession = async (id: number) => {
@@ -92,6 +127,7 @@ export const useChatStore = defineStore('chat', () => {
         } else {
           currentSessionId.value = null
           messages.value = []
+          saveLastSessionId(null)
         }
       }
     } catch (error) {
@@ -100,7 +136,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const sendMessage = async (content: string) => {
-    if (!userId.value || !currentSessionId.value) return
+    if (!userId.value || !currentSessionId.value) {
+      const err = new Error(`Cannot send: missing userId=${userId.value} or sessionId=${currentSessionId.value}`)
+      console.error('[ChatStore] sendMessage guard failed:', err.message)
+      throw err
+    }
     isSending.value = true
 
     const tempMessage: ChatMessage = {
@@ -123,7 +163,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const sendMessageStream = async (content: string) => {
-    if (!userId.value || !currentSessionId.value) return
+    if (!userId.value || !currentSessionId.value) {
+      const err = new Error(`Cannot send stream: missing userId=${userId.value} or sessionId=${currentSessionId.value}`)
+      console.error('[ChatStore] sendMessageStream guard failed:', err.message)
+      throw err
+    }
     abortController.value = new AbortController()
     isSending.value = true
     isStreaming.value = true
@@ -138,6 +182,15 @@ export const useChatStore = defineStore('chat', () => {
     }
     messages.value.push(userMessage)
 
+    const assistantMessage: ChatMessage = {
+      id: Date.now() + 1,
+      sessionId: currentSessionId.value,
+      role: 'ASSISTANT',
+      content: '',
+      createdAt: new Date().toISOString()
+    }
+    messages.value.push(assistantMessage)
+
     try {
       const reader = await chatApi.sendMessageStream(
         currentSessionId.value,
@@ -148,14 +201,9 @@ export const useChatStore = defineStore('chat', () => {
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         console.log('Stream aborted by user')
-        if (streamingContent.value) {
-          messages.value.push({
-            id: Date.now() + 1,
-            sessionId: currentSessionId.value,
-            role: 'ASSISTANT',
-            content: streamingContent.value + '\n\n[已中断]',
-            createdAt: new Date().toISOString()
-          })
+        const lastMsg = messages.value[messages.value.length - 1]
+        if (lastMsg && lastMsg.role === 'ASSISTANT' && lastMsg.content) {
+          lastMsg.content += '\n\n[已中断]'
         }
       } else {
         console.error('Stream request failed:', error)
@@ -163,6 +211,14 @@ export const useChatStore = defineStore('chat', () => {
     } finally {
       isSending.value = false
       isStreaming.value = false
+      if (!streamingContent.value && !streamError.value) {
+        const lastMsg = messages.value[messages.value.length - 1]
+        if (lastMsg && lastMsg.role === 'ASSISTANT' && !lastMsg.content) {
+          lastMsg.content = 'AI 未返回有效回复'
+        } else {
+          streamError.value = 'AI 未返回有效回复'
+        }
+      }
       streamingContent.value = ''
       abortController.value = null
     }
@@ -172,6 +228,10 @@ export const useChatStore = defineStore('chat', () => {
     if (abortController.value) {
       abortController.value.abort()
     }
+  }
+
+  const clearStreamError = () => {
+    streamError.value = null
   }
 
   const processStreamReader = async (reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> => {
@@ -191,10 +251,14 @@ export const useChatStore = defineStore('chat', () => {
           const trimmed = part.trim()
           if (!trimmed) continue
 
+          let jsonStr: string
           const dataLine = trimmed.split('\n').find(line => line.startsWith('data:'))
-          if (!dataLine) continue
+          if (dataLine) {
+            jsonStr = dataLine.slice(5).trim()
+          } else {
+            jsonStr = trimmed
+          }
 
-          const jsonStr = dataLine.slice(5).trim()
           if (!jsonStr) continue
 
           let parsed
@@ -207,53 +271,60 @@ export const useChatStore = defineStore('chat', () => {
 
           if (parsed.error) {
             console.error('Server stream error:', parsed.error)
-            throw new Error(parsed.error)
+            streamError.value = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error)
+            throw new Error(streamError.value)
           }
 
-          if (parsed.done) {
-            if (streamingContent.value && userId.value && currentSessionId.value) {
-              messages.value.push({
-                id: Date.now() + 1,
-                sessionId: currentSessionId.value,
-                role: 'ASSISTANT',
-                content: streamingContent.value,
-                createdAt: new Date().toISOString()
-              })
-            }
+          if (parsed.done || parsed.choices?.[0]?.finish_reason) {
             return
           }
 
+          let contentToAdd = ''
           if (parsed.content != null) {
-            streamingContent.value += parsed.content
+            contentToAdd = parsed.content
+          } else if (parsed.choices?.[0]?.delta?.content != null) {
+            contentToAdd = parsed.choices[0].delta.content
+          }
+
+          if (contentToAdd) {
+            streamingContent.value += contentToAdd
+            const lastMsg = messages.value[messages.value.length - 1]
+            if (lastMsg && lastMsg.role === 'ASSISTANT') {
+              lastMsg.content = streamingContent.value
+            }
           }
         }
       }
 
       if (buffer.trim()) {
+        let jsonStr: string
         const dataLine = buffer.split('\n').find(line => line.startsWith('data:'))
         if (dataLine) {
-          const jsonStr = dataLine.slice(5).trim()
-          if (jsonStr) {
-            try {
-              const parsed = JSON.parse(jsonStr)
-              if (parsed.content != null) {
-                streamingContent.value += parsed.content
-              }
-            } catch (e) {
-              console.warn('Failed to parse remaining SSE JSON:', jsonStr, e)
+          jsonStr = dataLine.slice(5).trim()
+        } else {
+          jsonStr = buffer.trim()
+        }
+
+        if (jsonStr) {
+          try {
+            const parsed = JSON.parse(jsonStr)
+            let contentToAdd = ''
+            if (parsed.content != null) {
+              contentToAdd = parsed.content
+            } else if (parsed.choices?.[0]?.delta?.content != null) {
+              contentToAdd = parsed.choices[0].delta.content
             }
+            if (contentToAdd) {
+              streamingContent.value += contentToAdd
+              const lastMsg = messages.value[messages.value.length - 1]
+              if (lastMsg && lastMsg.role === 'ASSISTANT') {
+                lastMsg.content = streamingContent.value
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to parse remaining SSE JSON:', jsonStr, e)
           }
         }
-      }
-
-      if (streamingContent.value && userId.value && currentSessionId.value) {
-        messages.value.push({
-          id: Date.now() + 1,
-          sessionId: currentSessionId.value,
-          role: 'ASSISTANT',
-          content: streamingContent.value,
-          createdAt: new Date().toISOString()
-        })
       }
     } finally {
       reader.releaseLock()
@@ -289,6 +360,7 @@ export const useChatStore = defineStore('chat', () => {
     isStreaming,
     streamingContent,
     abortController,
+    streamError,
     currentSession,
 
     setUserId,
@@ -296,10 +368,12 @@ export const useChatStore = defineStore('chat', () => {
     createSession,
     updateSession,
     switchSession,
+    restoreLastSession,
     deleteSession,
     sendMessage,
     sendMessageStream,
     stopStreaming,
+    clearStreamError,
     processStreamReader,
     setModel,
     toggleCapability,

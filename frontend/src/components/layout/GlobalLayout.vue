@@ -47,7 +47,11 @@
     </nav>
 
     <main class="main-content">
-      <router-view />
+      <router-view v-slot="{ Component, route }">
+        <transition name="page-transition" mode="out-in" appear>
+          <component :is="Component" :key="route.path" />
+        </transition>
+      </router-view>
     </main>
 
     <SettingsModal v-model="showSettingsModal" />
@@ -289,6 +293,38 @@ function handleLogout() {
 .main-content {
   padding-top: 56px;
   min-height: calc(100vh - 56px);
+}
+
+/* ========== Page Transition ========== */
+.page-transition-enter-active {
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+.page-transition-leave-active {
+  transition: opacity 0.18s ease-in, transform 0.18s ease-in;
+}
+
+.page-transition-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-transition-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition-enter-active,
+  .page-transition-leave-active {
+    transition: none;
+  }
+
+  .page-transition-enter-from,
+  .page-transition-leave-to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (max-width: 768px) {
