@@ -102,7 +102,13 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        if (request.getEmail() != null) {
+        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
+            LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
+                    .eq(User::getEmail, request.getEmail())
+                    .ne(User::getId, userId);
+            if (userRepository.selectCount(wrapper) > 0) {
+                throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+            }
             user.setEmail(request.getEmail());
         }
         if (request.getPhone() != null) {
