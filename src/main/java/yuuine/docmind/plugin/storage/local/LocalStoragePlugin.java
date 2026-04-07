@@ -2,13 +2,14 @@ package yuuine.docmind.plugin.storage.local;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import yuuine.docmind.common.plugin.StoragePlugin;
 
-import java.io.InputStream;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class LocalStoragePlugin implements StoragePlugin {
 
@@ -20,42 +21,60 @@ public class LocalStoragePlugin implements StoragePlugin {
     }
 
     @Override
-    public String storeFile(String filename, InputStream inputStream, String contentType) {
-        // TODO: 实现文件存储
-        // 1. 使用配置的 basePath 作为存储根目录
-        // 2. 生成唯一 fileId (UUID)，建立 fileId -> 实际文件路径的映射
-        // 3. 将 inputStream 写入目标文件
-        // 4. 可选：保存元数据 (filename, contentType, fileSize) 到映射文件或数据库
-        // 5. 处理磁盘空间不足、IO异常等情况
-        log.info("Storing file: {} to {}", filename, properties.getBasePath());
-        return "file-id-" + System.currentTimeMillis();
+    public String storeFile(String fileId, String filename, InputStream inputStream, String contentType) {
+        log.info("LocalStoragePlugin.storeFile 被调用: fileId={}, filename={}, contentType={}", fileId, filename, contentType);
+        try {
+            Path storageDir = Paths.get(properties.getBasePath());
+            log.info("存储目录: {}", storageDir.toAbsolutePath());
+            if (!Files.exists(storageDir)) {
+                log.info("创建存储目录: {}", storageDir);
+                Files.createDirectories(storageDir);
+            }
+
+            Path filePath = storageDir.resolve(fileId);
+            log.info("文件路径: {}", filePath.toAbsolutePath());
+
+            try (OutputStream outputStream = Files.newOutputStream(filePath)) {
+                inputStream.transferTo(outputStream);
+            }
+
+            log.info("文件存储成功: fileId={}, filename={}", fileId, filename);
+            return fileId;
+        } catch (IOException e) {
+            log.error("文件存储失败: filename={}", filename, e);
+            throw new RuntimeException("文件存储失败", e);
+        }
     }
 
     @Override
     public InputStream retrieveFile(String fileId) {
-        // TODO: 实现获取文件流
-        // 1. 根据 fileId 查找实际文件路径
-        // 2. 打开文件并返回 InputStream
-        // 3. 处理文件不存在的情况，返回 null 或抛出异常
-        log.info("Retrieving file: {}", fileId);
-        return null;
+        try {
+            Path filePath = Paths.get(properties.getBasePath()).resolve(fileId);
+            if (!Files.exists(filePath)) {
+                throw new FileNotFoundException("文件不存在: " + fileId);
+            }
+            return Files.newInputStream(filePath);
+        } catch (IOException e) {
+            log.error("文件读取失败: fileId={}", fileId, e);
+            throw new RuntimeException("文件读取失败", e);
+        }
     }
 
     @Override
     public void deleteFile(String fileId) {
-        // TODO: 实现删除文件
-        // 1. 根据 fileId 查找实际文件路径
-        // 2. 删除文件和相关的元数据
-        // 3. 处理文件不存在的情况
-        log.info("Deleting file: {}", fileId);
+        try {
+            Path filePath = Paths.get(properties.getBasePath()).resolve(fileId);
+            Files.deleteIfExists(filePath);
+            log.info("文件删除成功: fileId={}", fileId);
+        } catch (IOException e) {
+            log.error("文件删除失败: fileId={}", fileId, e);
+            throw new RuntimeException("文件删除失败", e);
+        }
     }
 
     @Override
     public boolean exists(String fileId) {
-        // TODO: 实现检查文件存在
-        // 1. 根据 fileId 查找实际文件路径
-        // 2. 检查文件是否存在
-        log.info("Checking file exists: {}", fileId);
-        return false;
+        Path filePath = Paths.get(properties.getBasePath()).resolve(fileId);
+        return Files.exists(filePath);
     }
 }

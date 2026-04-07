@@ -28,3 +28,20 @@ chat:
       max-size: 8
       queue-capacity: 200
       keep-alive-seconds: 60
+
+docmind:
+  storage:
+    local:
+      base-path: ./data/storage
+  document:
+    upload:
+      max-file-size: 104857600
+    parser:
+      chunking-strategy: SENTENCE
+      max-segment-size: 1000
+      max-overlap-size: 200
+      hybrid:
+        paragraph-threshold: 800
+        sentence-threshold: 300
+      regex:
+        pattern: "\n\n"

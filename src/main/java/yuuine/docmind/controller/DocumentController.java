@@ -1,18 +1,19 @@
 package yuuine.docmind.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import yuuine.docmind.common.model.Result;
 import yuuine.docmind.core.audit.annotation.Audited;
+import yuuine.docmind.core.audit.dto.PageResponse;
 import yuuine.docmind.core.audit.valueobject.AuditAction;
 import yuuine.docmind.core.document.dto.DocumentQueryRequest;
 import yuuine.docmind.core.document.dto.DocumentResponse;
 import yuuine.docmind.core.document.dto.DocumentUploadRequest;
 import yuuine.docmind.core.document.service.DocumentService;
 
-import java.util.List;
-
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/documents")
 @RequiredArgsConstructor
@@ -25,19 +26,20 @@ public class DocumentController {
     public Result<DocumentResponse> upload(@RequestParam("file") MultipartFile file,
                                            @RequestParam(value = "filename", required = false) String filename,
                                            @RequestParam Long userId) {
+        log.info("收到上传请求: filename={}, originalFilename={}, size={}, userId={}", 
+                filename, file.getOriginalFilename(), file.getSize(), userId);
         DocumentUploadRequest request = DocumentUploadRequest.builder()
                 .file(file)
                 .filename(filename)
                 .build();
-        return Result.success(documentService.uploadDocument(request, userId));
+        DocumentResponse response = documentService.uploadDocument(request, userId);
+        log.info("上传成功: documentId={}", response.getId());
+        return Result.success(response);
     }
 
     @GetMapping
-    public Result<List<DocumentResponse>> list(@RequestParam Long userId,
-                                               @RequestBody(required = false) DocumentQueryRequest request) {
-        if (request == null) {
-            request = new DocumentQueryRequest();
-        }
+    public Result<PageResponse<DocumentResponse>> list(@RequestParam Long userId,
+                                                        DocumentQueryRequest request) {
         return Result.success(documentService.listDocuments(userId, request));
     }
 

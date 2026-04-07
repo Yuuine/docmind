@@ -97,7 +97,7 @@ public class LlmWebFluxServiceImpl implements LlmService {
                     }
                 }
                 
-                String finishReason = (String) choices.get(0).get("finish_reason");
+                String finishReason = (String) choices.getFirst().get("finish_reason");
                 if (finishReason != null && !finishReason.isEmpty()) {
                     log.debug("parseSseLine - 收到finish_reason: {}", finishReason);
                     return Mono.just(LlmChunk.of("", true));

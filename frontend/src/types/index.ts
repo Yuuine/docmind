@@ -12,6 +12,14 @@ export interface PageResult<T> {
   size: number
 }
 
+export interface PageResponse<T> {
+  records: T[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
 export interface User {
   id: number
   username: string

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { User, Document, ChatSession, ChatMessage, AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
+import type { User, Document, ChatSession, ChatMessage, AIModel, AIModelCreateRequest, AIModelUpdateRequest, PageResponse } from '@/types'
 import { StreamHttpError } from '@/api/streamError'
 
 const api = axios.create({
@@ -47,18 +47,19 @@ export const userApi = {
 }
 
 export const documentApi = {
-  upload: (file: File) => {
+  upload: (file: File, userId?: number) => {
     const formData = new FormData()
     formData.append('file', file)
     return api.post<Document>('/documents/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { userId }
     })
   },
-  list: (params: { page?: number; size?: number; filename?: string; status?: string }, userId?: number) =>
-    api.get<Document[]>('/documents', { params: { ...params, userId } }),
+  list: (params: { page?: number; pageSize?: number; filename?: string; status?: string }, userId?: number) =>
+    api.get<PageResponse<Document>>('/documents', { params: { ...params, userId } }),
   getDetail: (id: number) => api.get<Document>(`/documents/${id}`),
   download: (id: number) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
-  delete: (id: number) => api.delete<{ success: boolean }>(`/documents/${id}`)
+  delete: (id: number, userId?: number) => api.delete<{ success: boolean }>(`/documents/${id}`, { params: { userId } })
 }
 
 export const chatApi = {

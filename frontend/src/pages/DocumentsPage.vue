@@ -1,95 +1,131 @@
 <template>
-  <div class="documents-page">
+  <div
+    class="documents-page"
+    @dragover.prevent="onGlobalDragOver"
+    @dragleave.prevent="onGlobalDragLeave"
+    @drop.prevent="onGlobalDrop"
+  >
     <div class="page-header">
-      <h1 class="page-title">文档管理</h1>
-      <button class="upload-btn" @click="triggerUpload">
+      <div class="search-bar">
+        <input
+          v-model="localSearchQuery"
+          type="text"
+          placeholder="搜索文件名..."
+          class="search-input"
+        />
+      </div>
+      <button v-if="documents.length > 0 || searchQuery" class="upload-btn" @click="triggerUpload">
         <Icon name="upload" :size="16" />
-        上传文档
+        <span class="upload-btn-text">上传</span>
       </button>
       <input ref="fileInputRef" type="file" accept=".pdf,.doc,.docx,.txt,.md" hidden @change="onFileSelected" />
     </div>
 
-    <div class="search-bar">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="搜索文件名..."
-        class="search-input"
-      />
-    </div>
-
-    <div
-      class="upload-zone"
-      :class="{ 'is-uploading': isUploading }"
-      @click="triggerUpload"
-      @dragover.prevent="onDragOver"
-      @dragleave.prevent="onDragLeave"
-      @drop.prevent="onDrop"
-    >
-      <Icon name="upload" :size="32" />
-      <p class="upload-hint">点击或拖拽文件上传</p>
-      <p class="upload-formats">支持 PDF、DOC、DOCX、TXT、MD 格式</p>
-      <div v-if="isUploading && uploadProgress > 0" class="progress-bar">
-        <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
+    <div v-if="documents.length === 0 && !searchQuery">
+      <div
+        class="upload-zone"
+        :class="{ 'is-uploading': isUploading }"
+        @click="triggerUpload"
+        @dragover.prevent="onDragOver"
+        @dragleave.prevent="onDragLeave"
+        @drop.prevent="onDrop"
+      >
+        <Icon name="upload" :size="32" />
+        <p class="upload-hint">点击或拖拽文件至此上传</p>
+        <p class="upload-formats">支持 PDF、DOC、DOCX、TXT、MD 格式</p>
+        <div v-if="isUploading && uploadProgress > 0" class="progress-bar">
+          <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
+        </div>
       </div>
     </div>
 
-    <div v-if="filteredDocuments.length > 0" class="doc-list">
-      <div ref="listAnchorRef" class="doc-list-anchor" aria-hidden="true" />
+    <div v-else class="doc-list">
       <div
-        class="doc-list-virtual"
-        :style="{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-          position: 'relative',
-          width: '100%'
-        }"
+        v-for="(doc, index) in documents"
+        :key="doc.id"
+        class="doc-row"
       >
-        <div
-          v-for="virtualRow in rowVirtualizer.getVirtualItems()"
-          :key="String(virtualRow.key)"
-          :ref="(el) => bindMeasureRef(el)"
-          class="doc-row"
-          :style="{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: `${virtualRow.size}px`,
-            transform: `translateY(${virtualRow.start}px)`
-          }"
-        >
-          <div class="doc-card">
-            <div class="doc-info">
-              <Icon name="document" :size="20" />
-              <span class="doc-filename">{{ filteredDocuments[virtualRow.index]?.filename }}</span>
-            </div>
-            <div class="doc-meta">
-              <span>{{ formatFileSize(filteredDocuments[virtualRow.index]?.fileSize ?? 0) }}</span>
-              <span>{{ formatDate(filteredDocuments[virtualRow.index]?.createdAt ?? '') }}</span>
-            </div>
-            <div class="doc-actions">
-              <span
-                class="status-tag"
-                :class="'status-' + (filteredDocuments[virtualRow.index]?.status ?? '').toLowerCase()"
-                >{{ statusLabel(filteredDocuments[virtualRow.index]?.status ?? '') }}</span
-              >
-              <button
-                class="delete-btn"
-                @click.stop="confirmDelete(filteredDocuments[virtualRow.index]!)"
-                title="删除"
-              >
-                <Icon name="trash" :size="16" />
-              </button>
-            </div>
+        <div class="doc-card">
+          <div class="doc-info">
+            <Icon name="document" :size="20" />
+            <span class="doc-filename">{{ doc.filename }}</span>
+          </div>
+          <div class="doc-meta">
+            <span>{{ formatFileSize(doc.fileSize ?? 0) }}</span>
+            <span>{{ formatDate(doc.createdAt ?? '') }}</span>
+          </div>
+          <div class="doc-actions">
+            <span
+              class="status-tag"
+              :class="'status-' + (doc.status ?? '').toLowerCase()"
+              >{{ statusLabel(doc.status ?? '') }}</span
+            >
+            <button
+              class="download-btn"
+              @click.stop="handleDownload(doc)"
+              title="下载"
+            >
+              <Icon name="download" :size="16" />
+            </button>
+            <button
+              class="delete-btn"
+              @click.stop="confirmDelete(doc)"
+              title="删除"
+            >
+              <Icon name="trash" :size="16" />
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-else class="empty-state">
-      <Icon name="document" :size="48" />
-      <p class="empty-title">暂无文档</p>
-      <p class="empty-desc">上传您的第一个文档开始使用</p>
+    <div v-if="total > 0" class="pagination">
+      <div class="pagination-left">
+        <span class="pagination-info">共 {{ total }} 条记录</span>
+        <select 
+          class="page-size-select" 
+          :value="pageSize" 
+          @change="(e) => setPageSize(Number((e.target as HTMLSelectElement).value))"
+        >
+          <option :value="10">10 条/页</option>
+          <option :value="20">20 条/页</option>
+          <option :value="50">50 条/页</option>
+        </select>
+      </div>
+      <div class="pagination-right">
+        <button 
+          class="pagination-btn" 
+          :disabled="currentPage <= 1"
+          @click="setPage(currentPage - 1)"
+        >
+          上一页
+        </button>
+        <div class="pagination-pages">
+          <button
+            v-for="page in getDisplayPages()"
+            :key="page"
+            class="page-btn"
+            :class="{ active: page === currentPage }"
+            @click="setPage(page)"
+          >
+            {{ page }}
+          </button>
+        </div>
+        <button 
+          class="pagination-btn" 
+          :disabled="currentPage >= totalPages"
+          @click="setPage(currentPage + 1)"
+        >
+          下一页
+        </button>
+      </div>
+    </div>
+
+    <div v-if="isDragging && (documents.length > 0 || searchQuery)" class="drop-overlay">
+      <div class="drop-overlay-content">
+        <Icon name="upload" :size="48" />
+        <p class="drop-overlay-text">释放文件以上传</p>
+      </div>
     </div>
 
     <ConfirmModal
@@ -105,26 +141,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick, onBeforeUnmount, type ComponentPublicInstance } from 'vue'
-import { useWindowVirtualizer, measureElement } from '@tanstack/vue-virtual'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { documentApi } from '@/api'
 import { useToastStore } from '@/stores/toast'
+import { useUserStore } from '@/stores/user'
 import { Icon } from '@/components/icons'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useDocumentsList } from '@/composables/useDocumentsList'
 import type { Document } from '@/types'
 
 const toastStore = useToastStore()
-const { documents, loadDocuments } = useDocumentsList()
+const userStore = useUserStore()
+const { documents, loadDocuments, currentPage, pageSize, total, totalPages, setPage, setPageSize, searchQuery, setSearchQuery } = useDocumentsList()
 
-const searchQuery = ref('')
+const localSearchQuery = ref('')
 const uploadProgress = ref(0)
 const isUploading = ref(false)
+const isDragging = ref(false)
 const showDeleteDocModal = ref(false)
 const targetDeleteDoc = ref<Document | null>(null)
 const fileInputRef = ref<HTMLInputElement>()
-const listAnchorRef = ref<HTMLElement | null>(null)
-const scrollMargin = ref(0)
+let globalDragCounter = 0
+let localDragCounter = 0
+let pollingInterval: ReturnType<typeof setInterval> | null = null
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'
@@ -152,57 +192,29 @@ function statusLabel(status: string): string {
   return map[status] || status
 }
 
-const filteredDocuments = computed(() => {
-  if (!searchQuery.value.trim()) return documents.value
-  const q = searchQuery.value.toLowerCase()
-  return documents.value.filter(d => d.filename.toLowerCase().includes(q))
+watch(localSearchQuery, (newValue) => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  searchDebounceTimer = setTimeout(() => {
+    setSearchQuery(newValue)
+  }, 300)
 })
-
-function recalcListScrollMargin() {
-  const el = listAnchorRef.value
-  if (typeof window === 'undefined' || !el) return
-  scrollMargin.value = el.getBoundingClientRect().top + window.scrollY
-}
-
-const virtualizerOptions = computed(() => ({
-  count: filteredDocuments.value.length,
-  estimateSize: () => 88,
-  overscan: 6,
-  scrollMargin: scrollMargin.value,
-  getItemKey: (index: number) => filteredDocuments.value[index]?.id ?? index,
-  measureElement
-}))
-
-const rowVirtualizer = useWindowVirtualizer(virtualizerOptions)
-
-function bindMeasureRef(el: Element | ComponentPublicInstance | null) {
-  rowVirtualizer.value.measureElement(el as HTMLElement | null)
-}
-
-watch(
-  () => documents.value.length,
-  () => nextTick(() => recalcListScrollMargin())
-)
-
-watch(
-  () => filteredDocuments.value.length,
-  () =>
-    nextTick(() => {
-      recalcListScrollMargin()
-      rowVirtualizer.value.measure()
-    })
-)
 
 function triggerUpload() {
   fileInputRef.value?.click()
 }
 
 async function handleFileUpload(file: File) {
+  console.log('handleFileUpload 被调用', { file: file.name, size: file.size, type: file.type })
   isUploading.value = true
   uploadProgress.value = 10
   try {
     uploadProgress.value = 50
-    await documentApi.upload(file)
+    const userId = userStore.user?.id
+    console.log('准备上传, userId:', userId)
+    await documentApi.upload(file, userId)
+    console.log('上传成功')
     uploadProgress.value = 100
     toastStore.success('文件上传成功')
     setTimeout(() => {
@@ -210,7 +222,8 @@ async function handleFileUpload(file: File) {
       isUploading.value = false
     }, 1000)
     await loadDocuments()
-  } catch {
+  } catch (error) {
+    console.error('上传失败:', error)
     toastStore.error('文件上传失败')
     uploadProgress.value = 0
     isUploading.value = false
@@ -224,20 +237,57 @@ function onFileSelected(e: Event) {
   input.value = ''
 }
 
-let dragCounter = 0
-
 function onDragOver() {
-  dragCounter++
+  localDragCounter++
 }
 
 function onDragLeave() {
-  dragCounter--
+  localDragCounter--
 }
 
 function onDrop(e: DragEvent) {
-  dragCounter = 0
+  localDragCounter = 0
   const file = e.dataTransfer?.files[0]
   if (file) handleFileUpload(file)
+}
+
+function onGlobalDragOver() {
+  globalDragCounter++
+  if (globalDragCounter === 1) {
+    isDragging.value = true
+  }
+}
+
+function onGlobalDragLeave() {
+  globalDragCounter--
+  if (globalDragCounter === 0) {
+    isDragging.value = false
+  }
+}
+
+function onGlobalDrop(e: DragEvent) {
+  globalDragCounter = 0
+  isDragging.value = false
+  const file = e.dataTransfer?.files[0]
+  if (file) handleFileUpload(file)
+}
+
+function getDisplayPages(): number[] {
+  const pages: number[] = []
+  const maxVisible = 5
+  let startPage = Math.max(1, currentPage.value - Math.floor(maxVisible / 2))
+  let endPage = startPage + maxVisible - 1
+  
+  if (endPage > totalPages.value) {
+    endPage = totalPages.value
+    startPage = Math.max(1, endPage - maxVisible + 1)
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i)
+  }
+  
+  return pages
 }
 
 function confirmDelete(doc: Document) {
@@ -248,7 +298,8 @@ function confirmDelete(doc: Document) {
 async function executeDelete() {
   if (!targetDeleteDoc.value) return
   try {
-    await documentApi.delete(targetDeleteDoc.value.id)
+    const userId = userStore.user?.id
+    await documentApi.delete(targetDeleteDoc.value.id, userId)
     toastStore.success('文件已删除')
     await loadDocuments()
   } catch {
@@ -258,20 +309,39 @@ async function executeDelete() {
   }
 }
 
-function onResize() {
-  recalcListScrollMargin()
+async function handleDownload(doc: Document) {
+  try {
+    const blob = await documentApi.download(doc.id) as Blob
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = doc.filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toastStore.success('文件下载成功')
+  } catch {
+    toastStore.error('文件下载失败')
+  }
 }
 
 onMounted(() => {
   loadDocuments()
-  nextTick(() => {
-    recalcListScrollMargin()
-    window.addEventListener('resize', onResize)
-  })
+  pollingInterval = setInterval(() => {
+    loadDocuments()
+  }, 3000)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', onResize)
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = null
+  }
 })
 </script>
 
@@ -283,57 +353,24 @@ onBeforeUnmount(() => {
   margin: 0 auto;
   padding: 32px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  position: relative;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0;
-}
-
-.upload-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 20px;
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
-    background-color var(--transition-fast);
-}
-
-.upload-btn:hover {
-  background: var(--btn-primary-bg-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--btn-primary-bg) 30%, transparent);
-}
-
-.upload-btn:active {
-  transform: scale(0.98);
+  margin-bottom: 16px;
+  gap: 16px;
 }
 
 .search-bar {
-  margin-bottom: 20px;
+  flex: 1;
+  max-width: 600px;
 }
 
 .search-input {
   width: 100%;
-  max-width: 600px;
   padding: 10px 16px;
   border: 1.5px solid var(--glass-border-subtle);
   border-radius: 10px;
@@ -360,18 +397,50 @@ onBeforeUnmount(() => {
   color: #aaa;
 }
 
+.upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.upload-btn:hover {
+  background: var(--btn-primary-bg-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--btn-primary-bg) 30%, transparent);
+}
+
+.upload-btn:active {
+  transform: scale(0.98);
+}
+
+.upload-btn-text {
+  display: inline-block;
+}
+
 .upload-zone {
   background: var(--glass-bg-light);
   backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
   border: 2px dashed var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 40px 20px;
+  padding: 48px 24px;
   text-align: center;
   color: #666;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   position: relative;
 }
 
@@ -409,20 +478,37 @@ onBeforeUnmount(() => {
   transition: width 0.3s ease;
 }
 
+.empty-state {
+  text-align: center;
+  padding: 24px 20px 60px;
+  color: #bbb;
+}
+
+.empty-state svg {
+  color: #ccc;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #888;
+  margin: 16px 0 8px;
+}
+
+.empty-desc {
+  font-size: 14px;
+  color: #aaa;
+  margin: 0;
+}
+
 .doc-list {
   display: flex;
   flex-direction: column;
-}
-
-.doc-list-anchor {
-  height: 0;
-  overflow: hidden;
-  pointer-events: none;
+  gap: 12px;
 }
 
 .doc-row {
   box-sizing: border-box;
-  padding-bottom: 12px;
 }
 
 .doc-card {
@@ -532,31 +618,178 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease;
 }
 
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-btn:hover {
+  color: #2563eb;
+  background: #dbeafe;
+}
+
 .delete-btn:hover {
   color: #dc2626;
   background: #fee2e2;
 }
 
-.empty-state {
+.drop-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.15s ease;
+}
+
+.drop-overlay-content {
+  background: white;
+  border-radius: 16px;
+  padding: 48px 64px;
   text-align: center;
-  padding: 60px 20px;
-  color: #bbb;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: scaleIn 0.15s ease;
 }
 
-.empty-state svg {
-  color: #ccc;
-}
-
-.empty-title {
+.drop-overlay-text {
   font-size: 18px;
   font-weight: 600;
-  color: #888;
-  margin: 16px 0 8px;
+  color: #1a1a1a;
+  margin: 16px 0 0;
 }
 
-.empty-desc {
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding: 16px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-md)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(1.15);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass-sm);
+  border-radius: var(--radius-md);
+}
+
+.pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pagination-info {
   font-size: 14px;
-  color: #aaa;
-  margin: 0;
+  color: #666;
+}
+
+.page-size-select {
+  padding: 6px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--glass-bg-light);
+  color: #333;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.page-size-select:hover {
+  border-color: var(--glass-border);
+}
+
+.page-size-select:focus {
+  border-color: var(--btn-primary-bg);
+  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.04);
+}
+
+.pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--glass-bg-light);
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--glass-border);
+}
+
+.pagination-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 4px;
+}
+
+.page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--glass-bg-light);
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-btn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--glass-border);
+}
+
+.page-btn.active {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--btn-primary-bg);
+}
+
+.page-btn:active:not(.active) {
+  transform: scale(0.98);
 }
 </style>

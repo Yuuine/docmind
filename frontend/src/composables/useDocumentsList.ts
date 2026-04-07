@@ -7,13 +7,58 @@ import { normalizeDocumentList } from '@/utils/documents'
 export function useDocumentsList() {
   const userStore = useUserStore()
   const documents = ref<Document[]>([])
+  const currentPage = ref(1)
+  const pageSize = ref(10)
+  const total = ref(0)
+  const totalPages = ref(0)
+  const searchQuery = ref('')
 
   async function loadDocuments() {
     const userId = userStore.user?.id
     if (!userId) return
-    const result = await documentApi.list({ page: 1, size: 100 })
-    documents.value = normalizeDocumentList(result)
+    const params: { page?: number; pageSize?: number; filename?: string } = { 
+      page: currentPage.value, 
+      pageSize: pageSize.value 
+    }
+    if (searchQuery.value.trim()) {
+      params.filename = searchQuery.value.trim()
+    }
+    console.log('loadDocuments called with params:', params)
+    const result = await documentApi.list(params, userId)
+    console.log('API response:', result)
+    documents.value = normalizeDocumentList(result.records)
+    total.value = result.total
+    totalPages.value = result.totalPages
+    console.log('documents:', documents.value.length, 'total:', total.value, 'totalPages:', totalPages.value)
   }
 
-  return { documents, loadDocuments }
+  function setPage(page: number) {
+    currentPage.value = page
+    loadDocuments()
+  }
+
+  function setPageSize(size: number) {
+    pageSize.value = size
+    currentPage.value = 1
+    loadDocuments()
+  }
+
+  function setSearchQuery(query: string) {
+    searchQuery.value = query
+    currentPage.value = 1
+    loadDocuments()
+  }
+
+  return { 
+    documents, 
+    currentPage, 
+    pageSize, 
+    total, 
+    totalPages, 
+    searchQuery,
+    loadDocuments,
+    setPage,
+    setPageSize,
+    setSearchQuery
+  }
 }
