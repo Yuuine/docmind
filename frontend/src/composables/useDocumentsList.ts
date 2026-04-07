@@ -8,7 +8,7 @@ export function useDocumentsList() {
   const userStore = useUserStore()
   const documents = ref<Document[]>([])
   const currentPage = ref(1)
-  const pageSize = ref(10)
+  const pageSize = 10
   const total = ref(0)
   const totalPages = ref(0)
   const searchQuery = ref('')
@@ -18,7 +18,7 @@ export function useDocumentsList() {
     if (!userId) return
     const params: { page?: number; pageSize?: number; filename?: string } = { 
       page: currentPage.value, 
-      pageSize: pageSize.value 
+      pageSize 
     }
     if (searchQuery.value.trim()) {
       params.filename = searchQuery.value.trim()
@@ -37,12 +37,6 @@ export function useDocumentsList() {
     loadDocuments()
   }
 
-  function setPageSize(size: number) {
-    pageSize.value = size
-    currentPage.value = 1
-    loadDocuments()
-  }
-
   function setSearchQuery(query: string) {
     searchQuery.value = query
     currentPage.value = 1
@@ -58,7 +52,6 @@ export function useDocumentsList() {
     searchQuery,
     loadDocuments,
     setPage,
-    setPageSize,
     setSearchQuery
   }
 }

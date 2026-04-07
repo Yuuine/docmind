@@ -145,14 +145,19 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
         int page = request.getPage() != null ? request.getPage() : 1;
         int pageSize = request.getPageSize() != null ? request.getPageSize() : 10;
 
-        Page<Document> documentPage = new Page<>(page, pageSize);
-        Page<Document> result = documentRepository.selectPage(documentPage, queryWrapper);
+        long total = documentRepository.selectCount(queryWrapper);
+        int totalPages = (int) Math.ceil((double) total / pageSize);
 
-        List<DocumentResponse> records = result.getRecords().stream()
+        queryWrapper.orderByDesc(Document::getCreatedAt);
+        queryWrapper.last("LIMIT " + pageSize + " OFFSET " + (page - 1) * pageSize);
+
+        List<Document> documentList = documentRepository.selectList(queryWrapper);
+
+        List<DocumentResponse> records = documentList.stream()
                 .map(this::toDocumentResponse)
                 .toList();
 
-        return PageResponse.of(records, result.getTotal(), page, pageSize);
+        return PageResponse.of(records, total, page, pageSize);
     }
 
     @Override

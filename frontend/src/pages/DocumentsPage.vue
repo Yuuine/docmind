@@ -21,7 +21,7 @@
       <input ref="fileInputRef" type="file" accept=".pdf,.doc,.docx,.txt,.md" hidden @change="onFileSelected" />
     </div>
 
-    <div v-if="documents.length === 0 && !searchQuery">
+    <div v-if="documents.length === 0 && !searchQuery" class="empty-wrapper">
       <div
         class="upload-zone"
         :class="{ 'is-uploading': isUploading }"
@@ -39,85 +39,78 @@
       </div>
     </div>
 
-    <div v-else class="doc-list">
-      <div
-        v-for="(doc, index) in documents"
-        :key="doc.id"
-        class="doc-row"
-      >
-        <div class="doc-card">
-          <div class="doc-info">
-            <Icon name="document" :size="20" />
-            <span class="doc-filename">{{ doc.filename }}</span>
-          </div>
-          <div class="doc-meta">
-            <span>{{ formatFileSize(doc.fileSize ?? 0) }}</span>
-            <span>{{ formatDate(doc.createdAt ?? '') }}</span>
-          </div>
-          <div class="doc-actions">
-            <span
-              class="status-tag"
-              :class="'status-' + (doc.status ?? '').toLowerCase()"
-              >{{ statusLabel(doc.status ?? '') }}</span
-            >
-            <button
-              class="download-btn"
-              @click.stop="handleDownload(doc)"
-              title="下载"
-            >
-              <Icon name="download" :size="16" />
-            </button>
-            <button
-              class="delete-btn"
-              @click.stop="confirmDelete(doc)"
-              title="删除"
-            >
-              <Icon name="trash" :size="16" />
-            </button>
+    <div v-else class="content-wrapper">
+      <div class="doc-list">
+        <div
+          v-for="(doc, index) in documents"
+          :key="doc.id"
+          class="doc-row"
+        >
+          <div class="doc-card">
+            <div class="doc-info">
+              <Icon name="document" :size="20" />
+              <span class="doc-filename">{{ doc.filename }}</span>
+            </div>
+            <div class="doc-meta">
+              <span>{{ formatFileSize(doc.fileSize ?? 0) }}</span>
+              <span>{{ formatDate(doc.createdAt ?? '') }}</span>
+            </div>
+            <div class="doc-actions">
+              <span
+                class="status-tag"
+                :class="'status-' + (doc.status ?? '').toLowerCase()"
+                >{{ statusLabel(doc.status ?? '') }}</span
+              >
+              <button
+                class="download-btn"
+                @click.stop="handleDownload(doc)"
+                title="下载"
+              >
+                <Icon name="download" :size="16" />
+              </button>
+              <button
+                class="delete-btn"
+                @click.stop="confirmDelete(doc)"
+                title="删除"
+              >
+                <Icon name="trash" :size="16" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div v-if="total > 0" class="pagination">
-      <div class="pagination-left">
-        <span class="pagination-info">共 {{ total }} 条记录</span>
-        <select 
-          class="page-size-select" 
-          :value="pageSize" 
-          @change="(e) => setPageSize(Number((e.target as HTMLSelectElement).value))"
-        >
-          <option :value="10">10 条/页</option>
-          <option :value="20">20 条/页</option>
-          <option :value="50">50 条/页</option>
-        </select>
-      </div>
-      <div class="pagination-right">
-        <button 
-          class="pagination-btn" 
-          :disabled="currentPage <= 1"
-          @click="setPage(currentPage - 1)"
-        >
-          上一页
-        </button>
-        <div class="pagination-pages">
-          <button
-            v-for="page in getDisplayPages()"
-            :key="page"
-            class="page-btn"
-            :class="{ active: page === currentPage }"
-            @click="setPage(page)"
+      <div v-if="total > 0" class="pagination">
+        <div class="pagination-left">
+          <span class="pagination-info">共 {{ total }} 条记录</span>
+        </div>
+        <div class="pagination-right">
+          <button 
+            class="pagination-btn" 
+            :disabled="currentPage <= 1"
+            @click="setPage(currentPage - 1)"
           >
-            {{ page }}
+            &lt;
+          </button>
+          <div class="pagination-pages">
+            <button
+              v-for="page in getDisplayPages()"
+              :key="page"
+              class="page-btn"
+              :class="{ active: page === currentPage }"
+              @click="setPage(page)"
+            >
+              {{ page }}
+            </button>
+          </div>
+          <button 
+            class="pagination-btn" 
+            :disabled="currentPage >= totalPages"
+            @click="setPage(currentPage + 1)"
+          >
+            &gt;
           </button>
         </div>
-        <button 
-          class="pagination-btn" 
-          :disabled="currentPage >= totalPages"
-          @click="setPage(currentPage + 1)"
-        >
-          下一页
-        </button>
       </div>
     </div>
 
@@ -152,7 +145,7 @@ import type { Document } from '@/types'
 
 const toastStore = useToastStore()
 const userStore = useUserStore()
-const { documents, loadDocuments, currentPage, pageSize, total, totalPages, setPage, setPageSize, searchQuery, setSearchQuery } = useDocumentsList()
+const { documents, loadDocuments, currentPage, pageSize, total, totalPages, setPage, searchQuery, setSearchQuery } = useDocumentsList()
 
 const localSearchQuery = ref('')
 const uploadProgress = ref(0)
@@ -274,7 +267,7 @@ function onGlobalDrop(e: DragEvent) {
 
 function getDisplayPages(): number[] {
   const pages: number[] = []
-  const maxVisible = 5
+  const maxVisible = 7
   let startPage = Math.max(1, currentPage.value - Math.floor(maxVisible / 2))
   let endPage = startPage + maxVisible - 1
   
@@ -347,13 +340,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .documents-page {
-  min-height: 100vh;
+  height: calc(100vh - 56px);
   background: transparent;
   max-width: 960px;
   margin: 0 auto;
-  padding: 32px;
+  padding: 24px 32px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .page-header {
@@ -362,6 +358,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   margin-bottom: 16px;
   gap: 16px;
+  flex-shrink: 0;
 }
 
 .search-bar {
@@ -429,6 +426,13 @@ onBeforeUnmount(() => {
   display: inline-block;
 }
 
+.empty-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .upload-zone {
   background: var(--glass-bg-light);
   backdrop-filter: blur(var(--blur-sm));
@@ -440,7 +444,6 @@ onBeforeUnmount(() => {
   color: #666;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-bottom: 16px;
   position: relative;
 }
 
@@ -478,37 +481,43 @@ onBeforeUnmount(() => {
   transition: width 0.3s ease;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 24px 20px 60px;
-  color: #bbb;
-}
-
-.empty-state svg {
-  color: #ccc;
-}
-
-.empty-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #888;
-  margin: 16px 0 8px;
-}
-
-.empty-desc {
-  font-size: 14px;
-  color: #aaa;
-  margin: 0;
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .doc-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin-right: -8px;
+}
+
+.doc-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.doc-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.doc-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.doc-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .doc-row {
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .doc-card {
@@ -518,7 +527,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-glass-sm);
   border-radius: var(--radius-md);
-  padding: 16px 20px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -642,6 +651,109 @@ onBeforeUnmount(() => {
   background: #fee2e2;
 }
 
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding: 14px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-md)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(1.15);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass-sm);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 40px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #1f2937;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 6px;
+}
+
+.page-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-btn:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+  border-color: #e5e7eb;
+}
+
+.page-btn.active {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--btn-primary-bg);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--btn-primary-bg) 25%, transparent);
+}
+
+.page-btn:active:not(.active) {
+  transform: scale(0.97);
+}
+
 .drop-overlay {
   position: fixed;
   top: 0;
@@ -681,115 +793,5 @@ onBeforeUnmount(() => {
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
-}
-
-.pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 24px;
-  padding: 16px 20px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-md)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(1.15);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-glass-sm);
-  border-radius: var(--radius-md);
-}
-
-.pagination-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.pagination-info {
-  font-size: 14px;
-  color: #666;
-}
-
-.page-size-select {
-  padding: 6px 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
-  font-size: 14px;
-  background: var(--glass-bg-light);
-  color: #333;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.page-size-select:hover {
-  border-color: var(--glass-border);
-}
-
-.page-size-select:focus {
-  border-color: var(--btn-primary-bg);
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.04);
-}
-
-.pagination-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pagination-btn {
-  padding: 8px 16px;
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
-  font-size: 14px;
-  background: var(--glass-bg-light);
-  color: #333;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.pagination-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.7);
-  border-color: var(--glass-border);
-}
-
-.pagination-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.pagination-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pagination-pages {
-  display: flex;
-  gap: 4px;
-}
-
-.page-btn {
-  min-width: 36px;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
-  font-size: 14px;
-  background: var(--glass-bg-light);
-  color: #333;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.page-btn:hover {
-  background: rgba(255, 255, 255, 0.7);
-  border-color: var(--glass-border);
-}
-
-.page-btn.active {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  border-color: var(--btn-primary-bg);
-}
-
-.page-btn:active:not(.active) {
-  transform: scale(0.98);
 }
 </style>
