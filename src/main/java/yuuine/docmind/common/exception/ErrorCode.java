@@ -21,7 +21,8 @@ public enum ErrorCode {
     INVALID_CREDENTIALS(401, "INVALID_CREDENTIALS", "用户名或密码错误"),
     UNAUTHORIZED(401, "UNAUTHORIZED", "未授权"),
     FORBIDDEN(403, "FORBIDDEN", "禁止访问"),
-    SESSION_EXPIRED(401, "SESSION_EXPIRED", "会话已过期");
+    SESSION_EXPIRED(401, "SESSION_EXPIRED", "会话已过期"),
+    MODEL_CONNECTION_FAILED(400, "MODEL_CONNECTION_FAILED", "模型连接失败");
 
     private final int httpCode;
     private final String code;

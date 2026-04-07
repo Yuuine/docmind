@@ -63,47 +63,10 @@
       </div>
     </div>
 
-    <div class="advanced-config">
-      <div class="advanced-config-header" @click="showAdvancedConfig = !showAdvancedConfig">
-        <span>高级配置</span>
-        <span class="advanced-chevron" :class="{ expanded: showAdvancedConfig }">▶</span>
-      </div>
-      <transition name="accordion">
-        <div v-if="showAdvancedConfig" class="advanced-config-body">
-          <div class="form-group">
-            <label>提供商类型</label>
-            <select v-model="formData.providerType">
-              <option value="">自定义</option>
-              <option value="DEEPSEEK">DeepSeek</option>
-              <option value="OPENAI">OpenAI</option>
-              <option value="MOONSHOT">Moonshot AI (Kimi)</option>
-              <option value="QWEN">通义千问</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>扩展配置 (JSON)</label>
-            <AutoResizeTextarea
-              v-model="formData.extraConfig"
-              placeholder='{"thinking": {"type": "enabled"}}'
-              :min-rows="3"
-              :max-rows="10"
-              enter-behavior="newline"
-              class="config-json-editor"
-            />
-          </div>
-          <div class="quick-config-buttons">
-            <button type="button" class="quick-btn" @click="applyQuickConfig('thinking')">+ 思考模式</button>
-            <button type="button" class="quick-btn" @click="applyQuickConfig('usage')">+ 返回 Usage</button>
-            <button type="button" class="quick-btn" @click="applyQuickConfig('filter')">+ 过滤思考内容</button>
-          </div>
-        </div>
-      </transition>
-    </div>
-
     <div class="form-actions">
       <button type="button" class="btn-cancel" @click="$emit('cancel')">取消</button>
-      <button type="submit" class="btn-submit" :disabled="isSubmitting">
-        {{ isSubmitting ? '保存中...' : '保存模型' }}
+      <button type="submit" class="btn-submit" :disabled="isSubmitting || isTesting">
+        {{ isTesting ? '测试连接中...' : (isSubmitting ? '保存中...' : '保存模型') }}
       </button>
     </div>
   </form>
@@ -114,9 +77,9 @@ import { reactive, ref, watch } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
-import type { AIModel, AIModelCreateRequest, AIModelUpdateRequest, ModelProviderType } from '@/types'
+import type { AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
 import { getAxiosErrorMessage } from '@/utils/axiosMessage'
-import { AutoResizeTextarea } from '@/components'
+import { modelApi } from '@/api'
 
 const props = defineProps<{
   model: AIModel | null
@@ -132,7 +95,7 @@ const modelStore = useModelsStore()
 const toastStore = useToastStore()
 const userStore = useUserStore()
 const isSubmitting = ref(false)
-const showAdvancedConfig = ref(false)
+const isTesting = ref(false)
 
 const formData = reactive({
   name: '',
@@ -140,9 +103,7 @@ const formData = reactive({
   apiKey: '',
   modelName: '',
   maxTokens: 4096,
-  temperature: 0.7,
-  providerType: '',
-  extraConfig: ''
+  temperature: 0.7
 })
 
 const errors = reactive<Record<string, string>>({
@@ -162,8 +123,6 @@ watch(
       formData.modelName = val.modelName
       formData.maxTokens = val.maxTokens || 4096
       formData.temperature = val.temperature ?? 0.7
-      formData.providerType = val.providerType || ''
-      formData.extraConfig = val.extraConfig ? (typeof val.extraConfig === 'object' ? JSON.stringify(val.extraConfig, null, 2) : val.extraConfig) : ''
     } else {
       resetForm()
     }
@@ -178,53 +137,9 @@ function resetForm() {
   formData.modelName = ''
   formData.maxTokens = 4096
   formData.temperature = 0.7
-  formData.providerType = ''
-  formData.extraConfig = ''
-  showAdvancedConfig.value = false
   Object.keys(errors).forEach((key) => {
     errors[key] = ''
   })
-}
-
-function parseExtraConfigField(): Record<string, unknown> | undefined {
-  const raw = formData.extraConfig.trim()
-  if (!raw) return undefined
-  try {
-    return JSON.parse(raw) as Record<string, unknown>
-  } catch {
-    return undefined
-  }
-}
-
-function providerTypeField(): ModelProviderType | undefined {
-  const t = formData.providerType.trim()
-  if (!t) return undefined
-  return t as ModelProviderType
-}
-
-function applyQuickConfig(type: string) {
-  let base: Record<string, unknown> = {}
-  try {
-    if (formData.extraConfig.trim()) {
-      base = JSON.parse(formData.extraConfig)
-    }
-  } catch { /* ignore */ }
-
-  switch (type) {
-    case 'thinking':
-      base.thinking = { type: 'enabled' }
-      break
-    case 'usage':
-      base.streamOptions = { includeUsage: true }
-      break
-    case 'filter':
-      base.filterReasoningContent = true
-      break
-  }
-  formData.extraConfig = JSON.stringify(base, null, 2)
-  if (!showAdvancedConfig.value) {
-    showAdvancedConfig.value = true
-  }
 }
 
 function validate(): boolean {
@@ -260,6 +175,22 @@ function validate(): boolean {
   return valid
 }
 
+async function testConnection(): Promise<boolean> {
+  isTesting.value = true
+  try {
+    await modelApi.testConnection({
+      baseUrl: formData.baseUrl.trim(),
+      apiKey: formData.apiKey.trim(),
+      modelName: formData.modelName.trim()
+    })
+    return true
+  } catch {
+    return false
+  } finally {
+    isTesting.value = false
+  }
+}
+
 async function handleSubmit() {
   if (!validate()) return
 
@@ -271,6 +202,12 @@ async function handleSubmit() {
 
   isSubmitting.value = true
   try {
+    const connected = await testConnection()
+    if (!connected) {
+      toastStore.error('连接失败')
+      return
+    }
+
     if (props.mode === 'create') {
       const data: AIModelCreateRequest = {
         name: formData.name.trim(),
@@ -278,9 +215,7 @@ async function handleSubmit() {
         apiKey: formData.apiKey.trim(),
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
-        temperature: formData.temperature,
-        providerType: providerTypeField(),
-        extraConfig: parseExtraConfigField()
+        temperature: formData.temperature
       }
       await modelStore.createModel(data, userId)
       toastStore.success('模型创建成功')
@@ -291,9 +226,7 @@ async function handleSubmit() {
         apiKey: formData.apiKey.trim(),
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
-        temperature: formData.temperature,
-        providerType: providerTypeField(),
-        extraConfig: parseExtraConfigField()
+        temperature: formData.temperature
       }
       await modelStore.updateModel(props.model!.id, data, userId)
       toastStore.success('模型更新成功')
@@ -415,116 +348,5 @@ async function handleSubmit() {
 .btn-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.advanced-config {
-  border: 1px solid #e8e8e8;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.advanced-config-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  color: #555;
-  background: #fafafa;
-  user-select: none;
-  transition: background 0.2s ease;
-}
-
-.advanced-config-header:hover {
-  background: #f5f5f5;
-}
-
-.advanced-chevron {
-  font-size: 10px;
-  color: #999;
-  transition: transform 0.2s ease;
-  display: inline-block;
-}
-
-.advanced-chevron.expanded {
-  transform: rotate(90deg);
-}
-
-.advanced-config-body {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border-top: 1px solid #e8e8e8;
-}
-
-.config-json-editor :deep(.textarea-inner) {
-  font-size: 13px;
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-}
-
-.form-group select {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1.5px solid #e8e8e8;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #fafafa;
-  color: #333;
-  outline: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-sizing: border-box;
-}
-
-.form-group select:focus {
-  border-color: var(--color-accent);
-  background: white;
-}
-
-.quick-config-buttons {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.quick-btn {
-  padding: 6px 12px;
-  border: 1.5px dashed #d0d0d0;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #666;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.quick-btn:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: var(--color-active-bg);
-}
-
-/* 折叠动画 */
-.accordion-enter-active,
-.accordion-leave-active {
-  transition: all 0.25s ease;
-  overflow: hidden;
-}
-
-.accordion-enter-from,
-.accordion-leave-to {
-  opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.accordion-enter-to,
-.accordion-leave-from {
-  opacity: 1;
-  max-height: 300px;
 }
 </style>

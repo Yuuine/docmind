@@ -89,7 +89,7 @@ export const chatApi = {
     api.delete<{ success: boolean }>(`/chat/sessions/${id}`, { params: { userId } })
 }
 
-export const modelsApi = {
+export const modelApi = {
   getModels: (userId: number) =>
     api.get<AIModel[]>('/models', { params: { userId } }),
   createModel: (data: AIModelCreateRequest, userId?: number) =>
@@ -99,7 +99,9 @@ export const modelsApi = {
   deleteModel: (id: number, userId?: number) =>
     api.delete(`/models/${id}`, { params: { userId } }),
   activateModel: (id: number, userId?: number) =>
-    api.post(`/models/${id}/activate`, null, { params: { userId } })
+    api.post(`/models/${id}/activate`, null, { params: { userId } }),
+  testConnection: (data: { baseUrl: string; apiKey: string; modelName: string }) =>
+    api.post('/models/test-connection', data)
 }
 
 export default api

@@ -64,8 +64,6 @@ export interface ChatMessage {
   createdAt: string
 }
 
-export type ModelProviderType = 'DEEPSEEK' | 'OPENAI' | 'MOONSHOT' | 'QWEN' | 'CUSTOM'
-
 export interface AIModel {
   id: number
   name: string
@@ -74,8 +72,6 @@ export interface AIModel {
   modelName: string
   maxTokens: number
   temperature: number
-  providerType?: ModelProviderType
-  extraConfig?: Record<string, unknown>
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -88,8 +84,6 @@ export interface AIModelCreateRequest {
   modelName: string
   maxTokens?: number
   temperature?: number
-  providerType?: ModelProviderType
-  extraConfig?: Record<string, unknown>
 }
 
 export interface AIModelUpdateRequest {
@@ -99,6 +93,4 @@ export interface AIModelUpdateRequest {
   modelName?: string
   maxTokens?: number
   temperature?: number
-  providerType?: ModelProviderType
-  extraConfig?: Record<string, unknown>
 }

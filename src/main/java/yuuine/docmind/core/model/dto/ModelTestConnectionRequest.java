@@ -9,11 +9,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AIModelCreateRequest {
-    private String name;
+public class ModelTestConnectionRequest {
     private String baseUrl;
     private String apiKey;
     private String modelName;
-    private Integer maxTokens;
-    private Double temperature;
 }

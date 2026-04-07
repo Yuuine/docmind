@@ -6,6 +6,7 @@ import yuuine.docmind.common.model.Result;
 import yuuine.docmind.core.model.dto.AIModelCreateRequest;
 import yuuine.docmind.core.model.dto.AIModelResponse;
 import yuuine.docmind.core.model.dto.AIModelUpdateRequest;
+import yuuine.docmind.core.model.dto.ModelTestConnectionRequest;
 import yuuine.docmind.core.model.service.ModelService;
 
 import java.util.List;
@@ -44,6 +45,12 @@ public class ModelController {
     @PostMapping("/{id}/activate")
     public Result<Void> activateModel(@PathVariable Long id, @RequestParam Long userId) {
         modelService.activateModel(id, userId);
+        return Result.success();
+    }
+
+    @PostMapping("/test-connection")
+    public Result<Void> testConnection(@RequestBody ModelTestConnectionRequest request) {
+        modelService.testConnection(request);
         return Result.success();
     }
 }

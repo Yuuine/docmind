@@ -62,7 +62,7 @@
                   <div class="menu-divider"></div>
                   <button class="menu-item add-model-item" @click="openModelsModal">
                     <Icon name="plus" :size="16" />
-                    <span>添加模型</span>
+                    <span>模型管理</span>
                   </button>
                 </div>
               </div>
@@ -537,6 +537,8 @@ function openModelsModal() {
 
 .add-model-item {
   color: var(--text-secondary);
+  justify-content: center;
+  gap: 6px;
 }
 
 .add-model-item:hover {
