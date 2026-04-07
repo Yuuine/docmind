@@ -69,8 +69,8 @@ function toggleSidebar() {
   localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed.value))
 }
 
-function onComposerBeforeSend() {
-  messageThreadRef.value?.prepareScrollForOutgoingMessage()
+async function onComposerBeforeSend(content: string) {
+  await messageThreadRef.value?.prepareScrollForOutgoingMessage(content)
 }
 
 async function handleSwitchSession(sessionId: number) {

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { chatApi } from '@/api'
 import type { ChatSession, ChatMessage } from '@/types'
+import { useStreamBuffer } from '@/composables/useStreamBuffer'
 
 interface ChatState {
   sessionId: number | null
@@ -26,6 +27,16 @@ export const useChatStore = defineStore('chat', () => {
   const streamingContent = ref('')
   const abortController = ref<AbortController | null>(null)
   const streamError = ref<string | null>(null)
+
+  const { pushText: pushStreamText, clear: clearStreamBuffer, isRendering, bufferLength, bufferSize } = useStreamBuffer({
+    onContentUpdate: (content) => {
+      streamingContent.value = content
+      const lastMsg = messages.value[messages.value.length - 1]
+      if (lastMsg && lastMsg.role === 'ASSISTANT') {
+        lastMsg.content = content
+      }
+    }
+  })
 
   const currentSession = computed(() => {
     return sessions.value.find(s => s.id === currentSessionId.value) || null
@@ -172,6 +183,7 @@ export const useChatStore = defineStore('chat', () => {
     isSending.value = true
     isStreaming.value = true
     streamingContent.value = ''
+    clearStreamBuffer()
 
     const userMessage: ChatMessage = {
       id: Date.now(),
@@ -209,16 +221,28 @@ export const useChatStore = defineStore('chat', () => {
         console.error('Stream request failed:', error)
       }
     } finally {
-      isSending.value = false
-      isStreaming.value = false
-      if (!streamingContent.value && !streamError.value) {
-        const lastMsg = messages.value[messages.value.length - 1]
-        if (lastMsg && lastMsg.role === 'ASSISTANT' && !lastMsg.content) {
+      await new Promise<void>((resolve) => {
+        const checkRendering = () => {
+          if (!isRendering.value) {
+            resolve()
+          } else {
+            setTimeout(checkRendering, 50)
+          }
+        }
+        checkRendering()
+      })
+
+      const lastMsg = messages.value[messages.value.length - 1]
+      if (lastMsg && lastMsg.role === 'ASSISTANT') {
+        if (streamingContent.value && !lastMsg.content) {
+          lastMsg.content = streamingContent.value
+        } else if (!streamingContent.value && !lastMsg.content && !streamError.value) {
           lastMsg.content = 'AI 未返回有效回复'
-        } else {
-          streamError.value = 'AI 未返回有效回复'
         }
       }
+
+      isSending.value = false
+      isStreaming.value = false
       streamingContent.value = ''
       abortController.value = null
     }
@@ -287,11 +311,7 @@ export const useChatStore = defineStore('chat', () => {
           }
 
           if (contentToAdd) {
-            streamingContent.value += contentToAdd
-            const lastMsg = messages.value[messages.value.length - 1]
-            if (lastMsg && lastMsg.role === 'ASSISTANT') {
-              lastMsg.content = streamingContent.value
-            }
+            pushStreamText(contentToAdd)
           }
         }
       }
@@ -315,11 +335,7 @@ export const useChatStore = defineStore('chat', () => {
               contentToAdd = parsed.choices[0].delta.content
             }
             if (contentToAdd) {
-              streamingContent.value += contentToAdd
-              const lastMsg = messages.value[messages.value.length - 1]
-              if (lastMsg && lastMsg.role === 'ASSISTANT') {
-                lastMsg.content = streamingContent.value
-              }
+              pushStreamText(contentToAdd)
             }
           } catch (e) {
             console.warn('Failed to parse remaining SSE JSON:', jsonStr, e)
@@ -361,6 +377,9 @@ export const useChatStore = defineStore('chat', () => {
     streamingContent,
     abortController,
     streamError,
+    isRendering,
+    bufferLength,
+    bufferSize,
     currentSession,
 
     setUserId,

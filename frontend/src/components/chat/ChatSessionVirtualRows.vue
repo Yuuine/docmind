@@ -36,7 +36,7 @@
                   chatStore.isStreaming && virtualRow.index === lastAssistantMessageIndex
                 "
               />
-              <template #footer>
+              <template v-if="!(chatStore.isStreaming && virtualRow.index === lastAssistantMessageIndex)" #footer>
                 <div class="message-meta-row message-meta-row--assistant">
                   <span class="message-time">{{
                     formatTime(messages[virtualRow.index]?.createdAt ?? '')
@@ -103,6 +103,8 @@ const lastAssistantMessageIndex = computed(() => {
   return m[last]?.role === 'ASSISTANT' ? last : -1
 })
 
+let lastMessagesLength = 0
+
 const virtualizerOptions = computed(() => ({
   count: messages.value.length,
   getScrollElement: () => props.getScrollParent() ?? null,
@@ -119,13 +121,13 @@ function bindMeasureRef(el: Element | ComponentPublicInstance | null) {
 }
 
 watch(
-  () => chatStore.streamingContent,
-  () => nextTick(() => rowVirtualizer.value.measure())
-)
-
-watch(
   () => messages.value.length,
-  () => nextTick(() => rowVirtualizer.value.measure())
+  (newLength) => {
+    if (newLength !== lastMessagesLength) {
+      lastMessagesLength = newLength
+      nextTick(() => rowVirtualizer.value.measure())
+    }
+  }
 )
 
 function formatTime(dateString: string) {

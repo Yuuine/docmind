@@ -32,6 +32,8 @@ const emit = defineEmits<{
 
 const visible = ref(false)
 let scrollHandler: (() => void) | null = null
+let isScrollingToBottom = false
+let animationFrameId = 0
 
 const checkPosition = () => {
   if (!props.container) return
@@ -41,18 +43,112 @@ const checkPosition = () => {
   visible.value = distanceFromBottom > props.threshold
 }
 
-const scrollToBottom = () => {
-  if (!props.container) return
+/**
+ * 缓动函数：easeOutQuart
+ * 特点：开始速度快，逐渐减速，结束时速度为0
+ * 效果：初始有爆发力，平滑停止无跳动
+ */
+function easeOutQuart(t: number): number {
+  return 1 - Math.pow(1 - t, 4)
+}
 
-  props.container.scrollTo({
-    top: props.container.scrollHeight,
-    behavior: 'smooth'
-  })
+/**
+ * 缓动函数：easeInOutCubic
+ * 特点：前半段加速，后半段减速
+ * 效果：非常自然的变速运动
+ */
+function easeInOutCubic(t: number): number {
+  return t < 0.5 
+    ? 4 * t * t * t 
+    : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
+
+/**
+ * 自定义变速滚动动画
+ * 
+ * 特点：
+ * 1. 使用 requestAnimationFrame 实现 60fps 流畅动画
+ * 2. 缓动函数控制速度变化（开始快 → 结束慢）
+ * 3. 每帧动态读取 scrollHeight，避免虚拟列表导致的过冲
+ * 4. 精确的终止条件，无回弹
+ */
+function animatedScrollToBottom(
+  duration: number = 500,
+  easingFn: (t: number) => number = easeOutQuart
+) {
+  if (!props.container || isScrollingToBottom) return
+  
+  isScrollingToBottom = true
+  
+  const container = props.container
+  let startTime: number | null = null
+  let startScrollTop = container.scrollTop
+  
+  const animate = (currentTime: number) => {
+    if (!props.container) {
+      isScrollingToBottom = false
+      return
+    }
+    
+    if (startTime === null) {
+      startTime = currentTime
+    }
+    
+    const elapsed = currentTime - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    
+    const easedProgress = easingFn(progress)
+    
+    const targetScrollTop = props.container.scrollHeight - props.container.clientHeight
+    const distance = targetScrollTop - startScrollTop
+    
+    const currentScrollTop = startScrollTop + (distance * easedProgress)
+    
+    props.container.scrollTop = currentScrollTop
+    
+    if (progress < 1) {
+      animationFrameId = requestAnimationFrame(animate)
+    } else {
+      props.container.scrollTop = targetScrollTop
+      
+      isScrollingToBottom = false
+      
+      checkPosition()
+      
+      emit('scrollToBottom')
+    }
+  }
+  
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+  }
+  
+  animationFrameId = requestAnimationFrame(animate)
+}
+
+const forceScrollToBottomInstant = () => {
+  if (!props.container) return
+  
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = 0
+  }
+  
+  isScrollingToBottom = false
+  
+  props.container.scrollTop = props.container.scrollHeight - props.container.clientHeight
+  
+  checkPosition()
+}
+
+const scrollToBottom = () => {
+  if (!props.container || isScrollingToBottom) return
+  
+  animatedScrollToBottom(450, easeOutQuart)
 }
 
 const handleClick = () => {
   scrollToBottom()
-  emit('scrollToBottom')
 }
 
 watch(() => props.container, (newContainer) => {
@@ -72,6 +168,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = 0
+  }
   if (scrollHandler && props.container) {
     props.container.removeEventListener('scroll', scrollHandler)
   }
@@ -79,7 +179,9 @@ onBeforeUnmount(() => {
 
 defineExpose({
   scrollToBottom,
-  checkPosition
+  checkPosition,
+  animatedScrollToBottom,
+  forceScrollToBottomInstant
 })
 </script>
 

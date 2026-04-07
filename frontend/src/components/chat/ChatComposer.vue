@@ -9,8 +9,10 @@
           <textarea
             v-model="inputMessage"
             class="input-textarea"
-            placeholder="输入您的问题..."
+            :class="{ 'input-disabled': chatStore.isStreaming || chatStore.isSending }"
+            :placeholder="chatStore.isStreaming ? 'AI正在回复中，请稍候...' : '输入您的问题...'"
             rows="1"
+            :disabled="chatStore.isStreaming"
             @keydown.enter.exact.prevent="sendMessage"
             @input="adjustHeight"
             ref="textareaRef"
@@ -128,7 +130,7 @@ defineProps<{
   messagesContainer?: HTMLElement | null
 }>()
 
-const emit = defineEmits<{ beforeSend: [] }>()
+const emit = defineEmits<{ beforeSend: [content: string] }>()
 
 const userStore = useUserStore()
 const chatStore = useChatStore()
@@ -158,6 +160,12 @@ function adjustHeight() {
 
 async function sendMessage() {
   if (!inputMessage.value.trim()) return
+  
+  if (chatStore.isStreaming) {
+    toastStore.warning('AI正在回复中，请等待完成后再发送')
+    return
+  }
+  
   const content = inputMessage.value.trim()
   inputMessage.value = ''
   showModelMenu.value = false
@@ -175,7 +183,7 @@ async function sendMessage() {
         return
       }
     }
-    emit('beforeSend')
+    emit('beforeSend', content)
     await chatStore.sendMessageStream(content)
   } catch (error) {
     console.error('[ChatComposer] sendMessage error:', error)
@@ -296,6 +304,15 @@ function openModelsModal() {
 
 .input-textarea::placeholder {
   color: var(--text-tertiary);
+}
+
+.input-textarea.input-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.input-textarea:disabled {
+  cursor: not-allowed;
 }
 
 .bottom-toolbar {

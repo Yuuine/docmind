@@ -69,7 +69,7 @@ function getScrollParent() {
 
 watch(messagesContainerRef, (v) => emit('scrollEl', v), { immediate: true })
 
-const { onMessagesScroll, scrollToBottomImmediate, prepareScrollForOutgoingMessage } = useChatScroll({
+const { onMessagesScroll, scrollToBottomImmediate, prepareScrollForOutgoingMessage, scrollAfterMessageSent } = useChatScroll({
   scrollEl: messagesContainerRef,
   isStreaming: () => chatStore.isStreaming,
   getMessages: () => chatStore.messages,
@@ -81,10 +81,15 @@ function bumpScrollTop() {
   if (c) c.scrollTop = 999999
 }
 
+async function prepareScrollForOutgoingMessageAsync(userContent?: string) {
+  prepareScrollForOutgoingMessage()
+  await scrollAfterMessageSent(userContent)
+}
+
 defineExpose({
   scrollToBottomImmediate,
   bumpScrollTop,
-  prepareScrollForOutgoingMessage
+  prepareScrollForOutgoingMessage: prepareScrollForOutgoingMessageAsync
 })
 </script>
 
