@@ -65,13 +65,27 @@
       </div>
     </div>
 
-    <JsonEditor
-      v-model="formData.extraConfig"
-      :model-name="formData.modelName"
-      :temperature="formData.temperature"
-      :max-tokens="formData.maxTokens"
-      ref="jsonEditorRef"
-    />
+    <div class="advanced-settings">
+      <button
+        type="button"
+        class="advanced-toggle"
+        @click="showAdvanced = !showAdvanced"
+      >
+        <span class="advanced-icon" :class="{ 'is-open': showAdvanced }">▶</span>
+        <span>高级设置</span>
+        <span v-if="formData.extraConfig.trim()" class="advanced-badge">已配置</span>
+      </button>
+      
+      <div v-show="showAdvanced" class="advanced-content">
+        <JsonEditor
+          v-model="formData.extraConfig"
+          :model-name="formData.modelName"
+          :temperature="formData.temperature"
+          :max-tokens="formData.maxTokens"
+          ref="jsonEditorRef"
+        />
+      </div>
+    </div>
 
     <div class="form-actions">
       <button type="button" class="btn-cancel" @click="$emit('cancel')">取消</button>
@@ -119,6 +133,7 @@ const formData = reactive({
 })
 
 const jsonEditorRef = ref<InstanceType<typeof JsonEditor>>()
+const showAdvanced = ref(false)
 
 const errors = reactive<Record<string, string>>({
   name: '',
@@ -138,8 +153,10 @@ watch(
       formData.maxTokens = val.maxTokens || 4096
       formData.temperature = val.temperature ?? 0.7
       formData.extraConfig = val.extraConfig || ''
+      showAdvanced.value = !!val.extraConfig?.trim()
     } else {
       resetForm()
+      showAdvanced.value = false
     }
   },
   { immediate: true }
@@ -237,7 +254,7 @@ async function handleSubmit() {
       return
     }
 
-    const extraConfig = formData.extraConfig.trim() || undefined
+    const extraConfig = formData.extraConfig.trim()
 
     if (props.mode === 'create') {
       const data: AIModelCreateRequest = {
@@ -386,5 +403,54 @@ async function handleSubmit() {
 .btn-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.advanced-settings {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.advanced-toggle {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8f9fa;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+  transition: background 0.2s ease;
+}
+
+.advanced-toggle:hover {
+  background: #f0f1f2;
+}
+
+.advanced-icon {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.advanced-icon.is-open {
+  transform: rotate(90deg);
+}
+
+.advanced-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #16a34a;
+  background: #dcfce7;
+  border-radius: 12px;
+}
+
+.advanced-content {
+  padding: 16px;
+  background: white;
 }
 </style>

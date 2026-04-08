@@ -22,6 +22,7 @@ import yuuine.docmind.common.plugin.EmbeddingPlugin;
 import yuuine.docmind.common.plugin.RerankPlugin;
 import yuuine.docmind.common.plugin.VectorStorePlugin;
 import yuuine.docmind.core.chat.config.RagPromptProperties;
+import yuuine.docmind.core.chat.service.HistoryMessageBuilder;
 import yuuine.docmind.core.chat.service.PromptAssembler;
 
 import java.util.ArrayList;
@@ -44,6 +45,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
     private final RerankPlugin rerankPlugin;
     private final PromptAssembler promptAssembler;
     private final RagPromptProperties ragPromptProperties;
+    private final HistoryMessageBuilder historyMessageBuilder;
     private final Executor ragTaskExecutor;
 
     public ChatServiceImpl(
@@ -57,6 +59,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
             RerankPlugin rerankPlugin,
             PromptAssembler promptAssembler,
             RagPromptProperties ragPromptProperties,
+            HistoryMessageBuilder historyMessageBuilder,
             @Qualifier("ragTaskExecutor") Executor ragTaskExecutor
     ) {
         this.chatSessionRepository = chatSessionRepository;
@@ -69,6 +72,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         this.rerankPlugin = rerankPlugin;
         this.promptAssembler = promptAssembler;
         this.ragPromptProperties = ragPromptProperties;
+        this.historyMessageBuilder = historyMessageBuilder;
         this.ragTaskExecutor = ragTaskExecutor;
     }
 
@@ -169,24 +173,19 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 .orderByAsc(ChatMessage::getCreatedAt);
         List<ChatMessage> chatMessages = chatMessageRepository.selectList(msgQuery);
 
-        StringBuilder accumulatedContent = new StringBuilder();
-
-        // TODO: 暂时简化，只发送用户当前消息，后续恢复完整的 RAG 流程和提示词构建
-        /*
-        String context = retrieveContext(request.getContent());
-        final String finalContext = context;
-
         List<ChatMessage> historyMessages = new ArrayList<>(chatMessages);
         if (!historyMessages.isEmpty() && historyMessages.getLast().getRole() == MessageRole.USER) {
             historyMessages.removeLast();
         }
 
-        List<Map<String, String>> assembledMessages = promptAssembler.assemble(
-            ragPromptProperties.getSystem(),
+        String context = retrieveContext(request.getContent());
+        final String finalContext = context;
+
+        List<Map<String, String>> assembledMessages = historyMessageBuilder.buildHistoryMessages(
             historyMessages,
+            ragPromptProperties.getSystem(),
             context,
-            request.getContent(),
-            ragPromptProperties.getMaxHistoryRounds()
+            request.getContent()
         );
 
         List<ChatMessage> llmMessages = assembledMessages.stream()
@@ -195,15 +194,8 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 .content(msg.get("content"))
                 .build())
             .toList();
-        */
 
-        // 临时简化：只创建包含当前用户消息的列表
-        List<ChatMessage> llmMessages = new ArrayList<>();
-        llmMessages.add(ChatMessage.builder()
-            .role(MessageRole.USER)
-            .content(request.getContent())
-            .build());
-        final String finalContext = "";
+        StringBuilder accumulatedContent = new StringBuilder();
 
         return llmService.streamChat(activeModel, llmMessages)
             .doOnNext(chunk -> log.info("收到LlmChunk: content={}, done={}, error={}", 
@@ -252,7 +244,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                                 .sessionId(request.getSessionId())
                                 .role(MessageRole.ASSISTANT)
                                 .content(accumulatedContent.toString())
-                                .retrievedDocs("[]")
+                                .retrievedDocs(finalContext.isBlank() ? "[]" : finalContext)
                                 .build();
                         chatMessageRepository.insert(assistantMessage);
                     } catch (Exception e) {
@@ -324,6 +316,13 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
     }
 
     private String retrieveContext(String query) {
+        // TODO: 测试阶段直接返回空字符串，后续实现完整 RAG 逻辑
+        // 完整实现包括：
+        // 1. 调用 embeddingPlugin.embed(query) 将问题向量化
+        // 2. 调用 vectorStorePlugin.search() 搜索相似文档
+        // 3. 可选调用 rerankPlugin.rerank() 重排序
+        // 4. 格式化返回 context 字符串
+        /*
         try {
             final int topK = 5;
             CompletableFuture<float[]> embeddingFuture = CompletableFuture.supplyAsync(() -> embeddingPlugin.embed(query), ragTaskExecutor);
@@ -362,6 +361,8 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
             log.warn("RAG检索失败, 降级为无RAG模式, error={}", e.getMessage(), e);
             return "";
         }
+        */
+        return "";
     }
 
     private ChatSessionResponse toSessionResponse(ChatSession session) {

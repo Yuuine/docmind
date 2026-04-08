@@ -105,9 +105,7 @@ public class ModelServiceImpl implements ModelService {
         if (request.getTemperature() != null) {
             model.setTemperature(request.getTemperature());
         }
-        if (request.getExtraConfig() != null) {
-            model.setExtraConfig(request.getExtraConfig());
-        }
+        model.setExtraConfig(request.getExtraConfig());
 
         aiModelRepository.updateById(model);
         return toModelResponse(model);

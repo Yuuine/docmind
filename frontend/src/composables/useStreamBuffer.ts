@@ -33,6 +33,7 @@ export function useStreamBuffer(options: UseStreamBufferOptions): UseStreamBuffe
   let renderedContent = ''
   let rafId = 0
   let heightTimer: ReturnType<typeof setTimeout> | null = null
+  let hasInitialRender = false
 
   const isRendering = ref(false)
   const bufferLength = ref(0)
@@ -93,6 +94,20 @@ export function useStreamBuffer(options: UseStreamBufferOptions): UseStreamBuffe
     const chars = text.split('')
     buffer.push(...chars)
     bufferLength.value = buffer.length
+    
+    if (!hasInitialRender && renderedContent.length === 0) {
+      hasInitialRender = true
+      const initialContent = chars.join('')
+      renderedContent = initialContent
+      bufferSize.value = renderedContent.length
+      
+      buffer.splice(0, chars.length)
+      bufferLength.value = buffer.length
+      
+      onContentUpdate(renderedContent)
+      flushHeightUpdate(renderedContent)
+    }
+    
     ensureLoopRunning()
   }
 
@@ -110,6 +125,7 @@ export function useStreamBuffer(options: UseStreamBufferOptions): UseStreamBuffe
     isRendering.value = false
     bufferLength.value = 0
     bufferSize.value = 0
+    hasInitialRender = false
   }
 
   onBeforeUnmount(() => {

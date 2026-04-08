@@ -36,7 +36,7 @@
       </button>
     </div>
 
-    <div class="editor-area" v-if="selectedTemplates.size > 0 || isCustomMode">
+    <div class="editor-area">
       <AutoResizeTextarea
         ref="textareaRef"
         v-model="jsonText"
@@ -79,20 +79,20 @@
 
     <div v-if="isValid && mergedPreview" class="preview-section">
       <div class="preview-header">
-        <span class="preview-title">请求预览</span>
+        <span class="preview-title">请求示例预览</span>
         <span class="preview-hint">绿色高亮为自定义追加的参数</span>
       </div>
       <pre class="preview-code"><code v-html="highlightedPreview"></code></pre>
     </div>
 
     <div class="config-hint">
-      <span>注意：自定义配置会合并到 LLM 请求的根结构下，可覆盖默认参数</span>
+      <span>自定义配置合并到 LLM 请求的根结构下，可覆盖默认参数，不建议修改默认参数</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import AutoResizeTextarea from '@/components/AutoResizeTextarea.vue'
 
 interface Props {
@@ -127,13 +127,6 @@ const templates: Template[] = [
   "thinking": {
     "type": "enabled"
   }
-}`
-  },
-  {
-    id: 'thinking_budget',
-    name: '思考预算',
-    config: `{
-  "thinking_budget": 2048
 }`
   },
   {
@@ -337,6 +330,19 @@ watch(selectedTemplates, () => {
   updateJsonFromTemplates()
 }, { deep: true })
 
+function deepContains(container: any, subset: any): boolean {
+  if (typeof container !== typeof subset) return false
+  if (typeof container !== 'object' || container === null || subset === null) {
+    return container === subset
+  }
+
+  for (const key of Object.keys(subset)) {
+    if (!(key in container)) return false
+    if (!deepContains(container[key], subset[key])) return false
+  }
+  return true
+}
+
 function syncTemplatesFromValue() {
   if (!props.modelValue.trim()) {
     selectedTemplates.value.clear()
@@ -350,14 +356,14 @@ function syncTemplatesFromValue() {
       .filter(t => {
         try {
           const templateObj = JSON.parse(t.config)
-          return JSON.stringify(templateObj) === JSON.stringify(parsed)
+          return deepContains(parsed, templateObj)
         } catch {
           return false
         }
       })
       .map(t => t.id)
 
-    if (matchedIds.length > 0 && matchedIds.length < templates.length) {
+    if (matchedIds.length > 0) {
       selectedTemplates.value = new Set(matchedIds)
       isCustomMode.value = false
     } else {
@@ -374,10 +380,27 @@ function toggleTemplate(template: Template) {
   isCustomMode.value = false
   if (selectedTemplates.value.has(template.id)) {
     selectedTemplates.value.delete(template.id)
+    removeTemplateConfig(template.id)
   } else {
     selectedTemplates.value.add(template.id)
   }
   selectedTemplates.value = new Set(selectedTemplates.value)
+}
+
+function removeTemplateConfig(templateId: string) {
+  if (!jsonText.value.trim()) return
+  try {
+    const currentConfig = JSON.parse(jsonText.value)
+    const template = templates.find(t => t.id === templateId)
+    if (template) {
+      const templateObj = JSON.parse(template.config)
+      for (const key of Object.keys(templateObj)) {
+        delete currentConfig[key]
+      }
+    }
+    jsonText.value = JSON.stringify(currentConfig, null, 2)
+  } catch (e) {
+  }
 }
 
 function enterCustomMode() {
@@ -388,21 +411,27 @@ function updateJsonFromTemplates() {
   if (isCustomMode.value) return
 
   if (selectedTemplates.value.size === 0) {
-    jsonText.value = ''
-    error.value = ''
     return
   }
 
   try {
-    const merged: Record<string, unknown> = {}
+    let baseConfig: Record<string, unknown> = {}
+    if (jsonText.value.trim()) {
+      try {
+        baseConfig = JSON.parse(jsonText.value)
+      } catch {
+        baseConfig = {}
+      }
+    }
+
     for (const id of selectedTemplates.value) {
       const template = templates.find(t => t.id === id)
       if (template) {
         const templateObj = JSON.parse(template.config)
-        Object.assign(merged, templateObj)
+        Object.assign(baseConfig, templateObj)
       }
     }
-    jsonText.value = JSON.stringify(merged, null, 2)
+    jsonText.value = JSON.stringify(baseConfig, null, 2)
     error.value = ''
   } catch (e) {
     error.value = '模板合并失败'
@@ -454,6 +483,10 @@ function clearAll() {
   selectedTemplates.value.clear()
   isCustomMode.value = false
 }
+
+onMounted(() => {
+  syncTemplatesFromValue()
+})
 
 defineExpose({
   validateJson
