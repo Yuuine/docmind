@@ -4,8 +4,10 @@ interface UseStreamBufferOptions {
   onContentUpdate: (content: string) => void
   onHeightUpdate?: (height: number) => void
   defaultBatchSize?: number
+  middleBatchSize?: number
   maxBatchSize?: number
-  bufferThreshold?: number
+  lowThreshold?: number
+  highThreshold?: number
 }
 
 interface UseStreamBufferReturn {
@@ -21,8 +23,10 @@ export function useStreamBuffer(options: UseStreamBufferOptions): UseStreamBuffe
     onContentUpdate,
     onHeightUpdate,
     defaultBatchSize = 3,
-    maxBatchSize = 10,
-    bufferThreshold = 500
+    middleBatchSize = 10,
+    maxBatchSize = 20,
+    lowThreshold = 500,
+    highThreshold = 1000
   } = options
 
   const buffer: string[] = []
@@ -43,10 +47,20 @@ export function useStreamBuffer(options: UseStreamBufferOptions): UseStreamBuffe
     }, 120)
   }
 
+  function calculateDynamicBatch(): number {
+    const len = buffer.length
+    if (len > highThreshold) {
+      return maxBatchSize
+    } else if (len > lowThreshold) {
+      return middleBatchSize
+    } else {
+      return defaultBatchSize
+    }
+  }
+
   function consumeBatch(): string[] {
-    const dynamicBatch =
-      buffer.length > bufferThreshold ? maxBatchSize : defaultBatchSize
-    const batch = buffer.splice(0, dynamicBatch)
+    const batchSize = calculateDynamicBatch()
+    const batch = buffer.splice(0, batchSize)
     bufferLength.value = buffer.length
     return batch
   }

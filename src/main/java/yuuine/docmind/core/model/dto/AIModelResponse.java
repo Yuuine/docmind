@@ -19,6 +19,7 @@ public class AIModelResponse {
     private Integer maxTokens;
     private Double temperature;
     private Boolean isActive;
+    private String extraConfig;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

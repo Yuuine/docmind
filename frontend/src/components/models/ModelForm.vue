@@ -21,7 +21,9 @@
     </div>
 
     <div class="form-group">
-      <label>API 密钥 <span class="required">*</span></label>
+      <label>API 密钥 <span v-if="mode === 'create'" class="required">*</span>
+        <span v-else class="optional">(选填，保持不变)</span>
+      </label>
       <input
         v-model="formData.apiKey"
         type="password"
@@ -63,6 +65,14 @@
       </div>
     </div>
 
+    <JsonEditor
+      v-model="formData.extraConfig"
+      :model-name="formData.modelName"
+      :temperature="formData.temperature"
+      :max-tokens="formData.maxTokens"
+      ref="jsonEditorRef"
+    />
+
     <div class="form-actions">
       <button type="button" class="btn-cancel" @click="$emit('cancel')">取消</button>
       <button type="submit" class="btn-submit" :disabled="isSubmitting || isTesting">
@@ -80,6 +90,7 @@ import { useUserStore } from '@/stores/user'
 import type { AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
 import { getAxiosErrorMessage } from '@/utils/axiosMessage'
 import { modelApi } from '@/api'
+import JsonEditor from '@/components/JsonEditor.vue'
 
 const props = defineProps<{
   model: AIModel | null
@@ -103,8 +114,11 @@ const formData = reactive({
   apiKey: '',
   modelName: '',
   maxTokens: 4096,
-  temperature: 0.7
+  temperature: 0.7,
+  extraConfig: ''
 })
+
+const jsonEditorRef = ref<InstanceType<typeof JsonEditor>>()
 
 const errors = reactive<Record<string, string>>({
   name: '',
@@ -119,10 +133,11 @@ watch(
     if (props.mode === 'edit' && val) {
       formData.name = val.name
       formData.baseUrl = val.baseUrl
-      formData.apiKey = val.apiKey
+      formData.apiKey = ''
       formData.modelName = val.modelName
       formData.maxTokens = val.maxTokens || 4096
       formData.temperature = val.temperature ?? 0.7
+      formData.extraConfig = val.extraConfig || ''
     } else {
       resetForm()
     }
@@ -137,6 +152,7 @@ function resetForm() {
   formData.modelName = ''
   formData.maxTokens = 4096
   formData.temperature = 0.7
+  formData.extraConfig = ''
   Object.keys(errors).forEach((key) => {
     errors[key] = ''
   })
@@ -158,7 +174,7 @@ function validate(): boolean {
     valid = false
   }
 
-  if (!formData.apiKey.trim()) {
+  if (props.mode === 'create' && !formData.apiKey.trim()) {
     errors.apiKey = '请输入 API 密钥'
     valid = false
   }
@@ -168,7 +184,16 @@ function validate(): boolean {
     valid = false
   }
 
-  if (!valid) {
+  if (formData.extraConfig.trim()) {
+    try {
+      JSON.parse(formData.extraConfig)
+    } catch {
+      toastStore.error('自定义配置JSON格式错误')
+      valid = false
+    }
+  }
+
+  if (!valid && Object.values(errors).some(e => e)) {
     toastStore.error('请填写所有必填项')
   }
 
@@ -176,6 +201,10 @@ function validate(): boolean {
 }
 
 async function testConnection(): Promise<boolean> {
+  if (props.mode === 'edit' && !formData.apiKey.trim()) {
+    return true
+  }
+
   isTesting.value = true
   try {
     await modelApi.testConnection({
@@ -208,6 +237,8 @@ async function handleSubmit() {
       return
     }
 
+    const extraConfig = formData.extraConfig.trim() || undefined
+
     if (props.mode === 'create') {
       const data: AIModelCreateRequest = {
         name: formData.name.trim(),
@@ -215,7 +246,8 @@ async function handleSubmit() {
         apiKey: formData.apiKey.trim(),
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
-        temperature: formData.temperature
+        temperature: formData.temperature,
+        extraConfig
       }
       await modelStore.createModel(data, userId)
       toastStore.success('模型创建成功')
@@ -223,10 +255,11 @@ async function handleSubmit() {
       const data: AIModelUpdateRequest = {
         name: formData.name.trim(),
         baseUrl: formData.baseUrl.trim(),
-        apiKey: formData.apiKey.trim(),
+        apiKey: formData.apiKey.trim() || undefined,
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
-        temperature: formData.temperature
+        temperature: formData.temperature,
+        extraConfig
       }
       await modelStore.updateModel(props.model!.id, data, userId)
       toastStore.success('模型更新成功')
@@ -271,6 +304,11 @@ async function handleSubmit() {
 
 .required {
   color: #d97706;
+}
+
+.optional {
+  color: #999;
+  font-weight: 400;
 }
 
 .form-group input {

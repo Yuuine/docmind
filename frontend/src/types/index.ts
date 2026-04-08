@@ -72,6 +72,7 @@ export interface AIModel {
   modelName: string
   maxTokens: number
   temperature: number
+  extraConfig?: string
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -84,6 +85,7 @@ export interface AIModelCreateRequest {
   modelName: string
   maxTokens?: number
   temperature?: number
+  extraConfig?: string
 }
 
 export interface AIModelUpdateRequest {
@@ -93,4 +95,5 @@ export interface AIModelUpdateRequest {
   modelName?: string
   maxTokens?: number
   temperature?: number
+  extraConfig?: string
 }

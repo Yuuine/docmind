@@ -16,4 +16,5 @@ public class AIModelCreateRequest {
     private String modelName;
     private Integer maxTokens;
     private Double temperature;
+    private String extraConfig;
 }

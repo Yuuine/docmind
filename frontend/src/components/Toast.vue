@@ -27,7 +27,7 @@ const toastStore = useToastStore()
 <style scoped>
 .toast-container {
   position: fixed;
-  top: 20px;
+  top: 60px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
@@ -170,7 +170,7 @@ const toastStore = useToastStore()
 /* 响应式 */
 @media (max-width: 480px) {
   .toast-container {
-    top: 12px;
+    top: 80px;
     right: 12px;
     left: 12px;
   }

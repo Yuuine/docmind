@@ -2,14 +2,12 @@ package yuuine.docmind.core.model.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
 import yuuine.docmind.core.model.dto.*;
@@ -28,7 +26,6 @@ import java.util.Map;
 public class ModelServiceImpl implements ModelService {
 
     private final AIModelRepository aiModelRepository;
-    private final ObjectMapper objectMapper;
 
     @Override
     public List<AIModelResponse> getModels(Long userId) {
@@ -53,6 +50,7 @@ public class ModelServiceImpl implements ModelService {
                 .modelName(request.getModelName())
                 .maxTokens(request.getMaxTokens())
                 .temperature(request.getTemperature())
+                .extraConfig(request.getExtraConfig())
                 .isActive(true)
                 .build();
 
@@ -68,6 +66,25 @@ public class ModelServiceImpl implements ModelService {
         }
         if (!model.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改此模型");
+        }
+
+        // 测试连接：如果有配置变更，使用新配置测试；否则用现有配置测试
+        String apiKeyToTest = StringUtils.hasText(request.getApiKey())
+            ? request.getApiKey()
+            : model.getApiKey();
+        String baseUrlToTest = StringUtils.hasText(request.getBaseUrl())
+            ? request.getBaseUrl()
+            : model.getBaseUrl();
+        String modelNameToTest = StringUtils.hasText(request.getModelName())
+            ? request.getModelName()
+            : model.getModelName();
+
+        if (StringUtils.hasText(apiKeyToTest)) {
+            testConnection(ModelTestConnectionRequest.builder()
+                .baseUrl(baseUrlToTest)
+                .apiKey(apiKeyToTest)
+                .modelName(modelNameToTest)
+                .build());
         }
 
         if (StringUtils.hasText(request.getName())) {
@@ -88,6 +105,9 @@ public class ModelServiceImpl implements ModelService {
         if (request.getTemperature() != null) {
             model.setTemperature(request.getTemperature());
         }
+        if (request.getExtraConfig() != null) {
+            model.setExtraConfig(request.getExtraConfig());
+        }
 
         aiModelRepository.updateById(model);
         return toModelResponse(model);
@@ -100,7 +120,7 @@ public class ModelServiceImpl implements ModelService {
             throw new BusinessException(ErrorCode.MODEL_NOT_FOUND);
         }
         if (!model.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权删除此模型");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改此模型");
         }
 
         aiModelRepository.deleteById(id);
@@ -125,7 +145,7 @@ public class ModelServiceImpl implements ModelService {
     @Override
     public void testConnection(ModelTestConnectionRequest request) {
         String apiUrl = request.getBaseUrl().replaceAll("/$", "") + "/chat/completions";
-        
+
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", request.getModelName());
         requestBody.put("messages", List.of(Map.of("role", "user", "content", "Hi")));
@@ -146,7 +166,7 @@ public class ModelServiceImpl implements ModelService {
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(10))
                     .block();
-            
+
             log.info("模型连接测试成功, model={}", request.getModelName());
         } catch (Exception e) {
             log.error("模型连接测试失败, model={}, error={}", request.getModelName(), e.getMessage());
@@ -170,6 +190,7 @@ public class ModelServiceImpl implements ModelService {
                 .maxTokens(model.getMaxTokens())
                 .temperature(model.getTemperature())
                 .isActive(model.getIsActive())
+                .extraConfig(model.getExtraConfig())
                 .createdAt(model.getCreatedAt())
                 .updatedAt(model.getUpdatedAt())
                 .build();

@@ -16,4 +16,5 @@ public class AIModelUpdateRequest {
     private String modelName;
     private Integer maxTokens;
     private Double temperature;
+    private String extraConfig;
 }
