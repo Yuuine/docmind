@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
+import yuuine.docmind.common.plugin.EmbeddingPlugin;
 import yuuine.docmind.common.plugin.ParserPlugin;
 import yuuine.docmind.common.plugin.StoragePlugin;
+import yuuine.docmind.common.plugin.VectorStorePlugin;
 import yuuine.docmind.core.document.chunking.ChunkingStrategy;
 import yuuine.docmind.core.document.chunking.ChunkingStrategyFactory;
 import yuuine.docmind.core.document.config.DocumentParserProperties;
@@ -27,6 +29,7 @@ import yuuine.docmind.plugin.parser.ParserPluginFactory;
 import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -41,6 +44,8 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
     private final StoragePlugin storagePlugin;
     private final DocumentParserProperties parserProperties;
     private final DocumentUploadProperties uploadProperties;
+    private final VectorStorePlugin vectorStorePlugin;
+    private final EmbeddingPlugin embeddingPlugin;
 
     @Override
     @Async("documentParsingExecutor")
@@ -115,16 +120,32 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
         deleteWrapper.eq(DocumentChunk::getDocumentId, documentId);
         documentChunkRepository.delete(deleteWrapper);
 
+        List<VectorStorePlugin.VectorChunk> vectorChunks = new java.util.ArrayList<>();
+
+        log.info("开始向量化 {} 个 chunks", chunks.size());
         for (int i = 0; i < chunks.size(); i++) {
             String chunkContent = chunks.get(i);
+            String chunkId = UUID.randomUUID().toString();
             DocumentChunk chunk = DocumentChunk.builder()
-                    .chunkId(UUID.randomUUID().toString())
+                    .chunkId(chunkId)
                     .documentId(documentId)
                     .chunkIndex(i)
                     .content(chunkContent)
                     .charCount(chunkContent.length())
                     .build();
             documentChunkRepository.insert(chunk);
+
+            float[] embedding = embeddingPlugin.embed(chunkContent);
+            vectorChunks.add(new VectorStorePlugin.VectorChunk(
+                    chunkId,
+                    String.valueOf(documentId),
+                    chunkContent,
+                    embedding,
+                    i
+            ));
         }
+
+        log.info("开始存储到向量库: documentId={}, chunks={}", documentId, vectorChunks.size());
+        vectorStorePlugin.addChunks(vectorChunks);
     }
 }

@@ -2,7 +2,6 @@ package yuuine.docmind.core.document.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -11,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
 import yuuine.docmind.common.plugin.StoragePlugin;
+import yuuine.docmind.common.plugin.VectorStorePlugin;
 import yuuine.docmind.core.audit.dto.PageResponse;
 import yuuine.docmind.core.document.config.DocumentUploadProperties;
 import yuuine.docmind.core.document.dto.DocumentQueryRequest;
@@ -26,9 +26,6 @@ import yuuine.docmind.core.document.valueobject.DocumentStatus;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -45,6 +42,7 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
     private final StoragePlugin storagePlugin;
     private final DocumentParsingService documentParsingService;
     private final DocumentUploadProperties uploadProperties;
+    private final VectorStorePlugin vectorStorePlugin;
 
     @Override
     public DocumentResponse uploadDocument(DocumentUploadRequest request, Long userId) {
@@ -174,6 +172,9 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
         LambdaQueryWrapper<DocumentChunk> chunkQueryWrapper = new LambdaQueryWrapper<>();
         chunkQueryWrapper.eq(DocumentChunk::getDocumentId, documentId);
         documentChunkRepository.delete(chunkQueryWrapper);
+
+        log.info("从向量库删除文档: documentId={}", documentId);
+        vectorStorePlugin.deleteByFileId(String.valueOf(documentId));
 
         storagePlugin.deleteFile(document.getFileId());
         documentRepository.deleteById(documentId);

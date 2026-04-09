@@ -1,11 +1,14 @@
 package yuuine.docmind.plugin.chroma;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 import yuuine.docmind.common.plugin.VectorStorePlugin;
 
-import java.util.List;
+import java.util.*;
 
 @Slf4j
 @Component
@@ -13,6 +16,33 @@ import java.util.List;
 public class ChromaVectorStorePlugin implements VectorStorePlugin {
 
     private final ChromaProperties properties;
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private String getCollectionUrl() {
+        return properties.getUrl() + "/api/v1/collections/" + properties.getCollectionName();
+    }
+
+    private void ensureCollectionExists() {
+        try {
+            restTemplate.getForEntity(getCollectionUrl(), String.class);
+        } catch (Exception e) {
+            log.info("Collection 不存在，创建: {}", properties.getCollectionName());
+            Map<String, Object> createRequest = new HashMap<>();
+            createRequest.put("name", properties.getCollectionName());
+            createRequest.put("metadata", Map.of("description", "DocMindRAG document chunks"));
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(createRequest, headers);
+            
+            restTemplate.postForEntity(
+                    properties.getUrl() + "/api/v1/collections",
+                    entity,
+                    String.class
+            );
+        }
+    }
 
     @Override
     public String getName() {
@@ -21,40 +51,115 @@ public class ChromaVectorStorePlugin implements VectorStorePlugin {
 
     @Override
     public void addChunks(List<VectorChunk> chunks) {
-        // TODO: 实现添加文档块到向量数据库
-        // 1. 使用 ChromaDB Java Client 或 REST API
-        // 2. 批量插入向量数据，包含 embedding、metadata(fileId, chunkIndex)、content
-        // 3. 处理批量插入的大小限制，可能需要分批处理
-        // 4. 处理网络异常、重复插入等边界情况
-        log.info("Adding {} chunks to ChromaDB collection: {}", chunks.size(), properties.getCollectionName());
+        log.info("开始添加 {} 个 chunks 到 ChromaDB", chunks.size());
+        ensureCollectionExists();
+
+        List<String> ids = new ArrayList<>();
+        List<String> documents = new ArrayList<>();
+        List<float[]> embeddings = new ArrayList<>();
+        List<Map<String, String>> metadatas = new ArrayList<>();
+
+        for (VectorChunk chunk : chunks) {
+            ids.add(chunk.chunkId());
+            documents.add(chunk.content());
+            if (chunk.embedding() != null) {
+                embeddings.add(chunk.embedding());
+            }
+            metadatas.add(Map.of(
+                    "fileId", chunk.fileId(),
+                    "chunkIndex", String.valueOf(chunk.chunkIndex())
+            ));
+        }
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("ids", ids);
+        request.put("documents", documents);
+        if (!embeddings.isEmpty()) {
+            request.put("embeddings", embeddings);
+        }
+        request.put("metadatas", metadatas);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+
+        restTemplate.postForEntity(getCollectionUrl() + "/add", entity, String.class);
+        log.info("成功添加 {} 个 chunks 到 ChromaDB", chunks.size());
     }
 
     @Override
     public List<SearchResult> search(String query, float[] queryEmbedding, int topK) {
-        // TODO: 实现向量相似度搜索
-        // 1. 使用 ChromaDB 的 query 接口进行向量搜索
-        // 2. 支持余弦相似度或欧氏距离
-        // 3. 返回 topK 个最相关的文档块，包含 chunkId, fileId, content, score
-        // 4. 处理空向量、连接失败等异常情况
-        log.info("Searching in ChromaDB, topK: {}", topK);
-        return List.of();
+        log.info("ChromaDB 搜索: query={}, topK={}", query, topK);
+        ensureCollectionExists();
+
+        Map<String, Object> request = new HashMap<>();
+        if (queryEmbedding != null) {
+            request.put("query_embeddings", List.of(queryEmbedding));
+        } else {
+            request.put("query_texts", List.of(query));
+        }
+        request.put("n_results", topK);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                getCollectionUrl() + "/query",
+                entity,
+                Map.class
+        );
+
+        List<SearchResult> results = new ArrayList<>();
+        if (response.getBody() != null) {
+            Map<String, Object> body = response.getBody();
+            List<List<String>> ids = (List<List<String>>) body.get("ids");
+            List<List<String>> documents = (List<List<String>>) body.get("documents");
+            List<List<Double>> distances = (List<List<Double>>) body.get("distances");
+            List<List<Map<String, String>>> metadatas = (List<List<Map<String, String>>>) body.get("metadatas");
+
+            if (ids != null && !ids.isEmpty()) {
+                for (int i = 0; i < ids.get(0).size(); i++) {
+                    Map<String, String> metadata = metadatas.get(0).get(i);
+                    results.add(new SearchResult(
+                            ids.get(0).get(i),
+                            metadata.get("fileId"),
+                            documents.get(0).get(i),
+                            1.0 - distances.get(0).get(i),
+                            Integer.parseInt(metadata.getOrDefault("chunkIndex", "0"))
+                    ));
+                }
+            }
+        }
+
+        log.info("ChromaDB 搜索完成: 返回 {} 个结果", results.size());
+        return results;
     }
 
     @Override
     public void deleteByFileId(String fileId) {
-        // TODO: 实现按文件ID删除向量
-        // 1. 使用 ChromaDB 的 delete 接口，按 metadata.fileId 过滤删除
-        // 2. 确保删除该文件关联的所有文档块
-        // 3. 处理文件不存在的情况
-        log.info("Deleting chunks from ChromaDB for fileId: {}", fileId);
+        log.info("从 ChromaDB 删除 fileId: {}", fileId);
+        ensureCollectionExists();
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("where", Map.of("fileId", fileId));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+
+        restTemplate.postForEntity(getCollectionUrl() + "/delete", entity, String.class);
+        log.info("ChromaDB 删除完成: fileId={}", fileId);
     }
 
     @Override
     public void deleteAll() {
-        // TODO: 实现清空向量数据库
-        // 1. 删除整个 collection 或清空所有数据
-        // 2. 谨慎操作，可能需要权限验证
-        // 3. 可选：重建 collection 以保持配置
-        log.info("Deleting all chunks from ChromaDB");
+        log.warn("清空 ChromaDB 所有数据");
+        try {
+            restTemplate.delete(getCollectionUrl());
+            log.info("ChromaDB 清空完成");
+        } catch (Exception e) {
+            log.error("清空 ChromaDB 失败", e);
+        }
     }
 }
