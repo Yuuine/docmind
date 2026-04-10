@@ -24,14 +24,10 @@
 
     <div class="detail-section">
       <h4 class="section-title">处理状态</h4>
-      <div class="status-display">
-        <span class="status-tag" :class="'status-' + document.status.toLowerCase()">
-          {{ statusLabel(document.status) }}
-        </span>
-      </div>
+      <DocumentStatusTimeline :status="document.status" />
       <div v-if="document.errorMessage" class="error-section">
         <button class="toggle-error-btn" @click="showError = !showError">
-          <Icon :name="showError ? 'chevron-down' : 'chevron-right'" :size="14" />
+          <Icon :name="showError ? 'chevronDown' : 'chevronRight'" :size="14" />
           <span>查看错误详情</span>
         </button>
         <div v-if="showError" class="error-message">
@@ -105,6 +101,7 @@ import { documentApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { Icon } from '@/components/icons'
 import DocumentChunkModal from './DocumentChunkModal.vue'
+import DocumentStatusTimeline from './DocumentStatusTimeline.vue'
 import type { Document, DocumentStats, DocumentChunkInfo } from '@/types'
 
 const props = defineProps<{
@@ -139,16 +136,7 @@ function formatDate(dateStr: string): string {
   })
 }
 
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    UPLOADING: '上传中',
-    PARSING: '解析中',
-    INDEXING: '索引中',
-    READY: '就绪',
-    ERROR: '错误'
-  }
-  return map[status] || status
-}
+
 
 async function loadStats() {
   if (!userId) return
@@ -262,42 +250,7 @@ watch(() => props.document.id, () => {
   font-weight: 500;
 }
 
-.status-display {
-  margin-bottom: 8px;
-}
 
-.status-tag {
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-weight: 500;
-  display: inline-block;
-}
-
-.status-uploading {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.status-parsing {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.status-indexing {
-  background: #e0e7ff;
-  color: #4338ca;
-}
-
-.status-ready {
-  background: #dcfce7;
-  color: #16a34a;
-}
-
-.status-error {
-  background: #fee2e2;
-  color: #dc2626;
-}
 
 .error-section {
   margin-top: 12px;
