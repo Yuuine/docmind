@@ -133,3 +133,6 @@ demo/
 
 ### local-docs ###
 local-docs/
+
+### venv ###
+.venv
