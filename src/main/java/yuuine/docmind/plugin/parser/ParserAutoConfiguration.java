@@ -42,6 +42,12 @@ public class ParserAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public TextParserPlugin textParserPlugin() {
+        return new TextParserPlugin();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public ParserPluginFactory parserPluginFactory(List<ParserPlugin> parsers) {
         return new ParserPluginFactory(parsers);
     }

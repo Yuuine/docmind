@@ -217,8 +217,14 @@ async function handleFileUpload(file: File) {
       isUploading.value = false
     }, 1000)
     await loadDocuments()
-  } catch (error) {
-    toastStore.error('文件上传失败')
+  } catch (error: any) {
+    let errorMessage = '文件上传失败'
+    if (error?.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (typeof error === 'string') {
+      errorMessage = error
+    }
+    toastStore.error(errorMessage)
     uploadProgress.value = 0
     isUploading.value = false
   }
@@ -305,7 +311,8 @@ async function executeDelete() {
 
 async function handleDownload(doc: Document) {
   try {
-    const blob = await documentApi.download(doc.id) as Blob
+    const userId = userStore.user?.id
+    const blob = await documentApi.download(doc.id, userId) as Blob
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

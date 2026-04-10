@@ -5,10 +5,15 @@
         v-for="(stage, index) in stages"
         :key="stage.key"
         class="timeline-item"
-        :class="{ active: isStageActive(stage.key), completed: isStageCompleted(stage.key) }"
+        :class="{ 
+          active: isStageActive(stage.key), 
+          completed: isStageCompleted(stage.key),
+          error: isStageError(stage.key)
+        }"
       >
         <div class="stage-icon">
           <Icon v-if="isStageCompleted(stage.key)" name="check" :size="14" />
+          <div v-else-if="isStageError(stage.key)" class="error-icon">✕</div>
           <div v-else-if="isStageActive(stage.key)" class="spinner"></div>
           <div v-else class="stage-number">{{ index + 1 }}</div>
         </div>
@@ -29,6 +34,7 @@ import { Icon } from '@/components/icons'
 
 const props = defineProps<{
   status: string
+  errorMessage?: string | null
 }>()
 
 const stages = [
@@ -48,8 +54,29 @@ const statusLabel = computed(() => {
   return map[props.status] || props.status
 })
 
+function getErrorStage(): string | null {
+  if (props.status !== 'ERROR' || !props.errorMessage) {
+    return null
+  }
+  const match = props.errorMessage.match(/^\[(\S+)阶段\]/)
+  if (match) {
+    const stageMap: Record<string, string> = {
+      '上传': 'uploading',
+      '解析': 'parsing',
+      '索引': 'indexing'
+    }
+    return stageMap[match[1]] || null
+  }
+  return null
+}
+
 function isStageActive(stageKey: string): boolean {
   return props.status.toLowerCase() === stageKey
+}
+
+function isStageError(stageKey: string): boolean {
+  const errorStage = getErrorStage()
+  return errorStage === stageKey
 }
 
 function isStageCompleted(stageKey: string): boolean {
@@ -57,8 +84,17 @@ function isStageCompleted(stageKey: string): boolean {
   const currentIndex = order.indexOf(props.status.toLowerCase())
   const stageIndex = order.indexOf(stageKey)
 
-  if (props.status === 'READY' || props.status === 'ERROR') {
+  if (props.status === 'READY') {
     return true
+  }
+
+  if (props.status === 'ERROR') {
+    const errorStage = getErrorStage()
+    if (!errorStage) {
+      return false
+    }
+    const errorStageIndex = order.indexOf(errorStage)
+    return stageIndex < errorStageIndex
   }
 
   return stageIndex < currentIndex
@@ -156,6 +192,22 @@ function isStageCompleted(stageKey: string): boolean {
 
 .timeline-item.active .stage-label {
   color: #1d4ed8;
+}
+
+.timeline-item.error .stage-icon {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.timeline-item.error .stage-label {
+  color: #dc2626;
+}
+
+.error-icon {
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
 }
 
 .current-status {

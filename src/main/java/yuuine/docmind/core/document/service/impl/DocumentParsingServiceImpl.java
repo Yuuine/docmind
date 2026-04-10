@@ -50,6 +50,7 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
     @Transactional
     public void parseDocumentAsync(Long documentId) {
         log.info("开始解析文档: documentId={}", documentId);
+        String currentStage = "上传";
         try {
             Document document = documentRepository.selectById(documentId);
             if (document == null) {
@@ -57,16 +58,18 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
                 return;
             }
 
+            currentStage = "上传";
             if (document.getFileSize() > uploadProperties.getMaxFileSize()) {
                 long maxSizeMB = uploadProperties.getMaxFileSize() / 1024 / 1024;
                 long fileSizeMB = document.getFileSize() / 1024 / 1024;
                 log.error("文件过大无法解析: documentId={}, size={}MB, max={}MB",
                         documentId, fileSizeMB, maxSizeMB);
                 updateDocumentStatus(documentId, DocumentStatus.ERROR, 
-                        "文件过大（最大支持" + maxSizeMB + "MB）");
+                        "[上传阶段] 文件过大（最大支持" + maxSizeMB + "MB）");
                 return;
             }
 
+            currentStage = "解析";
             updateDocumentStatus(documentId, DocumentStatus.PARSING, null);
 
             ParserPlugin parser = parserPluginFactory.getParser(document.getFilename())
@@ -82,7 +85,10 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
                     log.debug("Markdown文件使用结构化分块: chunkSize={}, overlap={}", chunkSize, overlap);
                     chunks = mdParser.parseChunks(inputStream, document.getFilename(), chunkSize, overlap);
                 } else {
+                    currentStage = "解析";
                     String text = parser.parse(inputStream, document.getFilename());
+                    
+                    currentStage = "索引";
                     updateDocumentStatus(documentId, DocumentStatus.INDEXING, null);
 
                     ChunkingStrategy strategy = chunkingStrategyFactory.recommendStrategy(document.getFilename());
@@ -93,6 +99,7 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
                             documentId, strategy.getType(), chunks.size());
                 }
 
+                currentStage = "索引";
                 updateDocumentStatus(documentId, DocumentStatus.INDEXING, null);
                 saveDocumentChunks(documentId, chunks);
 
@@ -100,8 +107,12 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
                 log.info("文档解析+分块完成: documentId={}, 分块数量={}", documentId, chunks.size());
             }
         } catch (Exception e) {
-            log.error("文档解析失败: documentId={}", documentId, e);
-            updateDocumentStatus(documentId, DocumentStatus.ERROR, e.getMessage());
+            log.error("文档解析失败: documentId={}, stage={}", documentId, currentStage, e);
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && !errorMessage.startsWith("[")) {
+                errorMessage = "[" + currentStage + "阶段] " + errorMessage;
+            }
+            updateDocumentStatus(documentId, DocumentStatus.ERROR, errorMessage);
         }
     }
 

@@ -2,6 +2,7 @@ package yuuine.docmind.core.document.service;
 
 import yuuine.docmind.core.audit.dto.PageResponse;
 import yuuine.docmind.core.document.dto.DocumentChunkInfo;
+import yuuine.docmind.core.document.dto.DocumentDownloadResponse;
 import yuuine.docmind.core.document.dto.DocumentQueryRequest;
 import yuuine.docmind.core.document.dto.DocumentResponse;
 import yuuine.docmind.core.document.dto.DocumentStats;
@@ -23,4 +24,6 @@ public interface DocumentService {
     List<DocumentChunkInfo> getDocumentChunks(Long documentId, Long userId);
 
     DocumentChunkInfo getDocumentChunk(Long chunkId, Long userId);
+
+    DocumentDownloadResponse downloadDocument(Long documentId, Long userId);
 }

@@ -42,6 +42,7 @@ public class ParserPluginFactory {
                     Optional.ofNullable(parserMap.get("xlsx"));
             case "application/vnd.openxmlformats-officedocument.presentationml.presentation" ->
                     Optional.ofNullable(parserMap.get("pptx"));
+            case "text/plain" -> Optional.ofNullable(parserMap.get("txt"));
             default -> Optional.empty();
         };
     }

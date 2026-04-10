@@ -1,7 +1,6 @@
 package yuuine.docmind.core.document.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,11 +12,7 @@ import yuuine.docmind.common.plugin.StoragePlugin;
 import yuuine.docmind.common.plugin.VectorStorePlugin;
 import yuuine.docmind.core.audit.dto.PageResponse;
 import yuuine.docmind.core.document.config.DocumentUploadProperties;
-import yuuine.docmind.core.document.dto.DocumentChunkInfo;
-import yuuine.docmind.core.document.dto.DocumentQueryRequest;
-import yuuine.docmind.core.document.dto.DocumentResponse;
-import yuuine.docmind.core.document.dto.DocumentStats;
-import yuuine.docmind.core.document.dto.DocumentUploadRequest;
+import yuuine.docmind.core.document.dto.*;
 import yuuine.docmind.core.document.model.Document;
 import yuuine.docmind.core.document.model.DocumentChunk;
 import yuuine.docmind.core.document.repository.DocumentChunkRepository;
@@ -118,6 +113,16 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
         }
     }
 
+    private void validateDocumentAccess(Long documentId, Long userId) {
+        Document document = documentRepository.selectById(documentId);
+        if (document == null) {
+            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
+        }
+        if (!document.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问此文档");
+        }
+    }
+
     @Override
     public DocumentResponse getDocument(Long documentId, Long userId) {
         Document document = documentRepository.selectById(documentId);
@@ -146,7 +151,6 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
         int pageSize = request.getPageSize() != null ? request.getPageSize() : 10;
 
         long total = documentRepository.selectCount(queryWrapper);
-        int totalPages = (int) Math.ceil((double) total / pageSize);
 
         queryWrapper.orderByDesc(Document::getCreatedAt);
         queryWrapper.last("LIMIT " + pageSize + " OFFSET " + (page - 1) * pageSize);
@@ -182,14 +186,6 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
         documentRepository.deleteById(documentId);
     }
 
-    public void updateDocumentStatus(Long documentId, DocumentStatus status, String errorMessage) {
-        LambdaUpdateWrapper<Document> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(Document::getId, documentId)
-                .set(Document::getStatus, status)
-                .set(errorMessage != null, Document::getErrorMessage, errorMessage);
-        documentRepository.update(null, updateWrapper);
-    }
-
     private DocumentResponse toDocumentResponse(Document document) {
         return DocumentResponse.builder()
                 .id(document.getId())
@@ -208,13 +204,7 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
 
     @Override
     public DocumentStats getDocumentStats(Long documentId, Long userId) {
-        Document document = documentRepository.selectById(documentId);
-        if (document == null) {
-            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
-        }
-        if (!document.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问此文档");
-        }
+        validateDocumentAccess(documentId, userId);
 
         LambdaQueryWrapper<DocumentChunk> chunkQueryWrapper = new LambdaQueryWrapper<>();
         chunkQueryWrapper.eq(DocumentChunk::getDocumentId, documentId);
@@ -233,13 +223,7 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
 
     @Override
     public List<DocumentChunkInfo> getDocumentChunks(Long documentId, Long userId) {
-        Document document = documentRepository.selectById(documentId);
-        if (document == null) {
-            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
-        }
-        if (!document.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问此文档");
-        }
+        validateDocumentAccess(documentId, userId);
 
         LambdaQueryWrapper<DocumentChunk> chunkQueryWrapper = new LambdaQueryWrapper<>();
         chunkQueryWrapper.eq(DocumentChunk::getDocumentId, documentId);
@@ -269,13 +253,7 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
             throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND, "分块不存在");
         }
 
-        Document document = documentRepository.selectById(chunk.getDocumentId());
-        if (document == null) {
-            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
-        }
-        if (!document.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问此分块");
-        }
+        validateDocumentAccess(chunk.getDocumentId(), userId);
 
         return DocumentChunkInfo.builder()
                 .id(chunk.getId())
@@ -285,6 +263,20 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
                 .content(chunk.getContent())
                 .charCount(chunk.getCharCount())
                 .createdAt(chunk.getCreatedAt())
+                .build();
+    }
+
+    @Override
+    public DocumentDownloadResponse downloadDocument(Long documentId, Long userId) {
+        validateDocumentAccess(documentId, userId);
+        Document document = documentRepository.selectById(documentId);
+        InputStream inputStream = storagePlugin.retrieveFile(document.getFileId());
+        
+        return DocumentDownloadResponse.builder()
+                .filename(document.getFilename())
+                .contentType(document.getContentType())
+                .fileSize(document.getFileSize())
+                .inputStream(inputStream)
                 .build();
     }
 }

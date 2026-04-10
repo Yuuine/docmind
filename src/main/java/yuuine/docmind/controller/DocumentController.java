@@ -1,5 +1,6 @@
 package yuuine.docmind.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -9,12 +10,18 @@ import yuuine.docmind.core.audit.annotation.Audited;
 import yuuine.docmind.core.audit.dto.PageResponse;
 import yuuine.docmind.core.audit.valueobject.AuditAction;
 import yuuine.docmind.core.document.dto.DocumentChunkInfo;
+import yuuine.docmind.core.document.dto.DocumentDownloadResponse;
 import yuuine.docmind.core.document.dto.DocumentQueryRequest;
 import yuuine.docmind.core.document.dto.DocumentResponse;
 import yuuine.docmind.core.document.dto.DocumentStats;
 import yuuine.docmind.core.document.dto.DocumentUploadRequest;
 import yuuine.docmind.core.document.service.DocumentService;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -75,5 +82,32 @@ public class DocumentController {
     public Result<DocumentChunkInfo> getChunk(@PathVariable Long chunkId, @RequestParam Long userId) {
         log.info("获取分块详情: chunkId={}, userId={}", chunkId, userId);
         return Result.success(documentService.getDocumentChunk(chunkId, userId));
+    }
+
+    @Audited(action = AuditAction.DOCUMENT_DOWNLOAD, resourceType = "Document", resourceIdParam = "id", describe = "下载文档")
+    @GetMapping("/{id}/download")
+    public void download(@PathVariable Long id, @RequestParam Long userId, HttpServletResponse response) {
+        log.info("下载文档: documentId={}, userId={}", id, userId);
+        DocumentDownloadResponse downloadResponse = documentService.downloadDocument(id, userId);
+        
+        try (InputStream inputStream = downloadResponse.getInputStream();
+             OutputStream outputStream = response.getOutputStream()) {
+            
+            response.setContentType(downloadResponse.getContentType());
+            response.setContentLengthLong(downloadResponse.getFileSize());
+            String encodedFilename = URLEncoder.encode(downloadResponse.getFilename(), StandardCharsets.UTF_8.toString())
+                    .replace("+", "%20");
+            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFilename);
+            
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+            outputStream.flush();
+        } catch (IOException e) {
+            log.error("文件下载失败: documentId={}", id, e);
+            throw new RuntimeException("文件下载失败", e);
+        }
     }
 }

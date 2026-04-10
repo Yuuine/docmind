@@ -24,7 +24,7 @@
 
     <div class="detail-section">
       <h4 class="section-title">处理状态</h4>
-      <DocumentStatusTimeline :status="document.status" />
+      <DocumentStatusTimeline :status="document.status" :error-message="document.errorMessage" />
       <div v-if="document.errorMessage" class="error-section">
         <button class="toggle-error-btn" @click="showError = !showError">
           <Icon :name="showError ? 'chevronDown' : 'chevronRight'" :size="14" />

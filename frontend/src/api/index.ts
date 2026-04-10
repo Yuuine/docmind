@@ -14,6 +14,9 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
     const data = response.data
     if (data.code !== 200) {
       return Promise.reject({ response: { data } })
@@ -57,8 +60,8 @@ export const documentApi = {
   },
   list: (params: { page?: number; pageSize?: number; filename?: string; status?: string }, userId?: number) =>
     api.get<PageResponse<Document>>('/documents', { params: { ...params, userId } }),
-  getDetail: (id: number) => api.get<Document>(`/documents/${id}`),
-  download: (id: number) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
+  getDetail: (id: number, userId?: number) => api.get<Document>(`/documents/${id}`, { params: { userId } }),
+  download: (id: number, userId?: number) => api.get(`/documents/${id}/download`, { responseType: 'blob', params: { userId } }),
   delete: (id: number, userId?: number) => api.delete<{ success: boolean }>(`/documents/${id}`, { params: { userId } }),
   getStats: (id: number, userId?: number) =>
     api.get<DocumentStats>(`/documents/${id}/stats`, { params: { userId } }),
