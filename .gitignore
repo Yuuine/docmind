@@ -1,4 +1,6 @@
-# Compiled class files
+# ========================================
+# Java / Maven
+# ========================================
 *.class
 *.jar
 *.war
@@ -22,7 +24,9 @@ buildNumber.properties
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-# IDE
+# ========================================
+# IDE / Editor
+# ========================================
 .idea/
 *.iws
 *.iml
@@ -52,7 +56,9 @@ nbdist/
 .sts4-cache
 bin/
 
-# Node.js
+# ========================================
+# Node.js / Frontend
+# ========================================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -62,11 +68,55 @@ lerna-debug.log*
 dist-ssr/
 *.local
 
+# Frontend build output
+frontend/dist/
+frontend/.vite/
+
+# Testing & Coverage
+coverage/
+.nyc_output
+.eslintcache
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.vscode-test
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ========================================
+# Python / Vector Service
+# ========================================
+# Virtual environments
+vector-service/venv/
+vector-service/.venv/
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+vector-service/__pycache__/
+
+# ========================================
 # Logs
+# ========================================
 logs/
 *.log
+local-docs/
 
+# ========================================
 # OS
+# ========================================
 .DS_Store
 Thumbs.db
 $RECYCLE.BIN/
@@ -77,7 +127,9 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 
+# ========================================
 # Application
+# ========================================
 data/
 *.env
 !*.env.example
@@ -99,40 +151,12 @@ application-prod.yml
 hs_err_pid*
 replay_pid*
 
-# JavaScript / Frontend
-coverage/
-.nyc_output
-.eslintcache
-.cache/
-.parcel-cache/
-.next/
-.nuxt/
-.vuepress/dist/
-.serverless/
-.fusebox/
-.dynamodb/
-.tern-port
-.vscode-test
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-
-### .trae ###
+# ========================================
+# AI Assistant Tools
+# ========================================
 .trae/
-
-### cursor ###
 .cursor/
-
-### agent ###
 .agent/
 
-### demo ###
+# Demo
 demo/
-
-### local-docs ###
-local-docs/
-
-### venv ###
-.venv

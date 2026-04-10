@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { User, Document, ChatSession, ChatMessage, AIModel, AIModelCreateRequest, AIModelUpdateRequest, PageResponse } from '@/types'
+import type { User, Document, ChatSession, ChatMessage, AIModel, AIModelCreateRequest, AIModelUpdateRequest, PageResponse, DocumentStats, DocumentChunkInfo } from '@/types'
 import { StreamHttpError } from '@/api/streamError'
 
 const api = axios.create({
@@ -59,7 +59,13 @@ export const documentApi = {
     api.get<PageResponse<Document>>('/documents', { params: { ...params, userId } }),
   getDetail: (id: number) => api.get<Document>(`/documents/${id}`),
   download: (id: number) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
-  delete: (id: number, userId?: number) => api.delete<{ success: boolean }>(`/documents/${id}`, { params: { userId } })
+  delete: (id: number, userId?: number) => api.delete<{ success: boolean }>(`/documents/${id}`, { params: { userId } }),
+  getStats: (id: number, userId?: number) =>
+    api.get<DocumentStats>(`/documents/${id}/stats`, { params: { userId } }),
+  getChunks: (id: number, userId?: number) =>
+    api.get<DocumentChunkInfo[]>(`/documents/${id}/chunks`, { params: { userId } }),
+  getChunk: (chunkId: number, userId?: number) =>
+    api.get<DocumentChunkInfo>(`/documents/chunks/${chunkId}`, { params: { userId } })
 }
 
 export const chatApi = {

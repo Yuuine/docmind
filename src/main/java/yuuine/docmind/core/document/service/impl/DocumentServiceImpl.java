@@ -13,8 +13,10 @@ import yuuine.docmind.common.plugin.StoragePlugin;
 import yuuine.docmind.common.plugin.VectorStorePlugin;
 import yuuine.docmind.core.audit.dto.PageResponse;
 import yuuine.docmind.core.document.config.DocumentUploadProperties;
+import yuuine.docmind.core.document.dto.DocumentChunkInfo;
 import yuuine.docmind.core.document.dto.DocumentQueryRequest;
 import yuuine.docmind.core.document.dto.DocumentResponse;
+import yuuine.docmind.core.document.dto.DocumentStats;
 import yuuine.docmind.core.document.dto.DocumentUploadRequest;
 import yuuine.docmind.core.document.model.Document;
 import yuuine.docmind.core.document.model.DocumentChunk;
@@ -201,6 +203,88 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
                 .errorMessage(document.getErrorMessage())
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())
+                .build();
+    }
+
+    @Override
+    public DocumentStats getDocumentStats(Long documentId, Long userId) {
+        Document document = documentRepository.selectById(documentId);
+        if (document == null) {
+            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
+        }
+        if (!document.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问此文档");
+        }
+
+        LambdaQueryWrapper<DocumentChunk> chunkQueryWrapper = new LambdaQueryWrapper<>();
+        chunkQueryWrapper.eq(DocumentChunk::getDocumentId, documentId);
+        List<DocumentChunk> chunks = documentChunkRepository.selectList(chunkQueryWrapper);
+
+        int chunkCount = chunks.size();
+        int totalCharCount = chunks.stream().mapToInt(DocumentChunk::getCharCount).sum();
+        int avgChunkSize = chunkCount > 0 ? totalCharCount / chunkCount : 0;
+
+        return DocumentStats.builder()
+                .chunkCount(chunkCount)
+                .totalCharCount(totalCharCount)
+                .avgChunkSize(avgChunkSize)
+                .build();
+    }
+
+    @Override
+    public List<DocumentChunkInfo> getDocumentChunks(Long documentId, Long userId) {
+        Document document = documentRepository.selectById(documentId);
+        if (document == null) {
+            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
+        }
+        if (!document.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问此文档");
+        }
+
+        LambdaQueryWrapper<DocumentChunk> chunkQueryWrapper = new LambdaQueryWrapper<>();
+        chunkQueryWrapper.eq(DocumentChunk::getDocumentId, documentId);
+        chunkQueryWrapper.orderByAsc(DocumentChunk::getChunkIndex);
+        List<DocumentChunk> chunks = documentChunkRepository.selectList(chunkQueryWrapper);
+
+        return chunks.stream().map(chunk -> {
+            String contentPreview = chunk.getContent();
+            if (contentPreview != null && contentPreview.length() > 100) {
+                contentPreview = contentPreview.substring(0, 100) + "...";
+            }
+            return DocumentChunkInfo.builder()
+                    .id(chunk.getId())
+                    .chunkId(chunk.getChunkId())
+                    .chunkIndex(chunk.getChunkIndex())
+                    .contentPreview(contentPreview)
+                    .charCount(chunk.getCharCount())
+                    .createdAt(chunk.getCreatedAt())
+                    .build();
+        }).toList();
+    }
+
+    @Override
+    public DocumentChunkInfo getDocumentChunk(Long chunkId, Long userId) {
+        DocumentChunk chunk = documentChunkRepository.selectById(chunkId);
+        if (chunk == null) {
+            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND, "分块不存在");
+        }
+
+        Document document = documentRepository.selectById(chunk.getDocumentId());
+        if (document == null) {
+            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
+        }
+        if (!document.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问此分块");
+        }
+
+        return DocumentChunkInfo.builder()
+                .id(chunk.getId())
+                .chunkId(chunk.getChunkId())
+                .chunkIndex(chunk.getChunkIndex())
+                .contentPreview(chunk.getContent())
+                .content(chunk.getContent())
+                .charCount(chunk.getCharCount())
+                .createdAt(chunk.getCreatedAt())
                 .build();
     }
 }

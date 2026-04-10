@@ -97,3 +97,19 @@ export interface AIModelUpdateRequest {
   temperature?: number
   extraConfig?: string
 }
+
+export interface DocumentStats {
+  chunkCount: number
+  totalCharCount: number
+  avgChunkSize: number
+}
+
+export interface DocumentChunkInfo {
+  id: number
+  chunkId: string
+  chunkIndex: number
+  contentPreview: string
+  content?: string
+  charCount: number
+  createdAt: string
+}

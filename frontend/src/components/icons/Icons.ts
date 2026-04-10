@@ -973,6 +973,21 @@ export const IconPaths = {
   arrowDown: `
     <line x1="12" y1="5" x2="12" y2="19"/>
     <polyline points="19 12 12 19 5 12"/>
+  `,
+
+  // Chevron 右
+  chevronRight: `
+    <polyline points="9 18 15 12 9 6"/>
+  `,
+
+  // Chevron 下
+  chevronDown: `
+    <polyline points="6 9 12 15 18 9"/>
+  `,
+
+  // Chevron 上
+  chevronUp: `
+    <polyline points="18 15 12 9 6 15"/>
   `
 } as const
 

@@ -46,10 +46,11 @@
           :key="doc.id"
           class="doc-row"
         >
-          <div class="doc-card">
+          <div class="doc-card" :class="{ 'is-expanded': isExpanded(doc.id) }" @click="toggleExpand(doc.id)">
             <div class="doc-info">
               <Icon name="document" :size="20" />
               <span class="doc-filename">{{ doc.filename }}</span>
+              <Icon :name="isExpanded(doc.id) ? 'chevron-up' : 'chevron-down'" :size="16" class="expand-icon" />
             </div>
             <div class="doc-meta">
               <span>{{ formatFileSize(doc.fileSize ?? 0) }}</span>
@@ -77,6 +78,9 @@
               </button>
             </div>
           </div>
+          <transition name="fade-slide">
+            <DocumentDetailPanel v-if="isExpanded(doc.id)" :document="doc" />
+          </transition>
         </div>
       </div>
 
@@ -140,74 +144,72 @@ import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
 import { Icon } from '@/components/icons'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import DocumentDetailPanel from '@/components/DocumentDetailPanel.vue'
 import { useDocumentsList } from '@/composables/useDocumentsList'
+import { useSmartPolling } from '@/composables/useSmartPolling'
+import { useDebouncedSearch } from '@/composables/useDebouncedSearch'
+import { formatFileSize, formatDate, statusLabel } from '@/utils/format'
 import type { Document } from '@/types'
 
 const toastStore = useToastStore()
 const userStore = useUserStore()
 const { documents, loadDocuments, currentPage, pageSize, total, totalPages, setPage, searchQuery, setSearchQuery } = useDocumentsList()
 
-const localSearchQuery = ref('')
 const uploadProgress = ref(0)
 const isUploading = ref(false)
 const isDragging = ref(false)
 const showDeleteDocModal = ref(false)
 const targetDeleteDoc = ref<Document | null>(null)
 const fileInputRef = ref<HTMLInputElement>()
+const expandedDocIds = ref<Record<number, boolean>>({})
 let globalDragCounter = 0
 let localDragCounter = 0
-let pollingInterval: ReturnType<typeof setInterval> | null = null
-let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    UPLOADING: '上传中',
-    PARSING: '解析中',
-    INDEXING: '索引中',
-    READY: '就绪',
-    ERROR: '错误'
-  }
-  return map[status] || status
-}
-
-watch(localSearchQuery, (newValue) => {
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer)
-  }
-  searchDebounceTimer = setTimeout(() => {
-    setSearchQuery(newValue)
-  }, 300)
+const { localSearchQuery, cleanup: cleanupSearch } = useDebouncedSearch({
+  delay: 300,
+  onSearch: setSearchQuery
 })
+
+function hasProcessingDocuments(): boolean {
+  return documents.value.some(doc => 
+    doc.status === 'UPLOADING' || 
+    doc.status === 'PARSING' || 
+    doc.status === 'INDEXING'
+  )
+}
+
+const {
+  startPolling,
+  stopPolling,
+  restartPollingIfNeeded,
+  setupVisibilityListener,
+  cleanup: cleanupPolling
+} = useSmartPolling({
+  fastInterval: 2000,
+  slowInterval: 60000,
+  hasProcessing: hasProcessingDocuments,
+  onPoll: loadDocuments
+})
+
+function toggleExpand(docId: number) {
+  expandedDocIds.value[docId] = !expandedDocIds.value[docId]
+}
+
+function isExpanded(docId: number): boolean {
+  return !!expandedDocIds.value[docId]
+}
 
 function triggerUpload() {
   fileInputRef.value?.click()
 }
 
 async function handleFileUpload(file: File) {
-  console.log('handleFileUpload 被调用', { file: file.name, size: file.size, type: file.type })
   isUploading.value = true
   uploadProgress.value = 10
   try {
     uploadProgress.value = 50
     const userId = userStore.user?.id
-    console.log('准备上传, userId:', userId)
     await documentApi.upload(file, userId)
-    console.log('上传成功')
     uploadProgress.value = 100
     toastStore.success('文件上传成功')
     setTimeout(() => {
@@ -216,7 +218,6 @@ async function handleFileUpload(file: File) {
     }, 1000)
     await loadDocuments()
   } catch (error) {
-    console.error('上传失败:', error)
     toastStore.error('文件上传失败')
     uploadProgress.value = 0
     isUploading.value = false
@@ -319,22 +320,19 @@ async function handleDownload(doc: Document) {
   }
 }
 
+watch(documents, () => {
+  restartPollingIfNeeded()
+})
+
 onMounted(() => {
   loadDocuments()
-  pollingInterval = setInterval(() => {
-    loadDocuments()
-  }, 3000)
+  startPolling()
+  setupVisibilityListener()
 })
 
 onBeforeUnmount(() => {
-  if (pollingInterval) {
-    clearInterval(pollingInterval)
-    pollingInterval = null
-  }
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer)
-    searchDebounceTimer = null
-  }
+  cleanupPolling()
+  cleanupSearch()
 })
 </script>
 
@@ -531,6 +529,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+  cursor: pointer;
   transition:
     transform var(--transition-fast),
     box-shadow var(--transition-fast),
@@ -543,12 +542,22 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.doc-card.is-expanded {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.doc-card.is-expanded:hover {
+  transform: none;
+}
+
 .doc-info {
   display: flex;
   align-items: center;
   gap: 10px;
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
 .doc-info svg {
@@ -793,5 +802,33 @@ onBeforeUnmount(() => {
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+.expand-icon {
+  margin-left: auto;
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.doc-card:hover .expand-icon {
+  color: #6b7280;
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.fade-slide-enter-to,
+.fade-slide-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>
