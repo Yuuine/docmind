@@ -3,10 +3,8 @@ package yuuine.docmind.plugin.embedding;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import yuuine.docmind.common.plugin.EmbeddingPlugin;
@@ -17,13 +15,15 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@Component("embeddingPlugin")
-@RequiredArgsConstructor
 public class DefaultEmbeddingPlugin implements EmbeddingPlugin {
 
     private final EmbeddingProperties properties;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public DefaultEmbeddingPlugin(EmbeddingProperties properties) {
+        this.properties = properties;
+    }
 
     @PostConstruct
     public void validateConfig() {

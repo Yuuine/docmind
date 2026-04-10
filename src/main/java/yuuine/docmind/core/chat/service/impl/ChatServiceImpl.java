@@ -316,19 +316,10 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
     }
 
     private String retrieveContext(String query) {
-        // TODO: 测试阶段直接返回空字符串，后续实现完整 RAG 逻辑
-        // 完整实现包括：
-        // 1. 调用 embeddingPlugin.embed(query) 将问题向量化
-        // 2. 调用 vectorStorePlugin.search() 搜索相似文档
-        // 3. 可选调用 rerankPlugin.rerank() 重排序
-        // 4. 格式化返回 context 字符串
-        /*
         try {
             final int topK = 5;
-            CompletableFuture<float[]> embeddingFuture = CompletableFuture.supplyAsync(() -> embeddingPlugin.embed(query), ragTaskExecutor);
-            CompletableFuture<List<VectorStorePlugin.SearchResult>> searchFuture = embeddingFuture.thenApplyAsync(queryEmbedding -> vectorStorePlugin.search(query, queryEmbedding, topK), ragTaskExecutor);
-
-            List<VectorStorePlugin.SearchResult> searchResults = searchFuture.get();
+            float[] queryEmbedding = embeddingPlugin.embed(query);
+            List<VectorStorePlugin.SearchResult> searchResults = vectorStorePlugin.search(query, queryEmbedding, topK);
 
             if (searchResults == null || searchResults.isEmpty()) {
                 return "";
@@ -361,8 +352,6 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
             log.warn("RAG检索失败, 降级为无RAG模式, error={}", e.getMessage(), e);
             return "";
         }
-        */
-        return "";
     }
 
     private ChatSessionResponse toSessionResponse(ChatSession session) {

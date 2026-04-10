@@ -2,11 +2,9 @@ package yuuine.docmind.core.document.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 import yuuine.docmind.core.document.chunking.ChunkingStrategyType;
 
 @Data
-@Component
 @ConfigurationProperties(prefix = "docmind.document.parser")
 public class DocumentParserProperties {
 

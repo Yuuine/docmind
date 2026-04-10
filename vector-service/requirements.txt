@@ -1,0 +1,32 @@
+# Web框架
+fastapi>=0.104.0,<1.0.0
+uvicorn[standard]>=0.24.0,<1.0.0
+
+# 数据验证
+pydantic>=2.5.0,<3.0.0
+
+# 配置管理
+python-dotenv>=1.0.0,<2.0.0
+
+# 向量数据库
+chromadb>=0.4.20,<0.6.0
+
+# Embedding模型
+sentence-transformers>=2.2.0,<4.0.0
+
+# 科学计算（sentence-transformers依赖）
+numpy>=1.24.0,<2.0.0
+scipy>=1.11.0,<2.0.0
+
+# PyTorch（sentence-transformers核心依赖）
+torch>=2.0.0,<3.0.0
+
+# 机器学习工具
+transformers>=4.35.0,<5.0.0
+tokenizers>=0.15.0,<1.0.0
+
+# 进度条（模型下载时显示）
+tqdm>=4.66.0,<5.0.0
+
+# HTTP请求（可选，用于测试）
+requests>=2.31.0,<3.0.0

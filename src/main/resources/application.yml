@@ -45,3 +45,14 @@ docmind:
         sentence-threshold: 300
       regex:
         pattern: "\n\n"
+  embedding:
+    type: python
+    python:
+      url: http://localhost:8001
+      connect-timeout: 10s
+      read-timeout: 30s
+  vectorstore:
+    python:
+      url: http://localhost:8001
+      connect-timeout: 10s
+      read-timeout: 30s

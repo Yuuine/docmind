@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
-import yuuine.docmind.common.plugin.EmbeddingPlugin;
 import yuuine.docmind.common.plugin.ParserPlugin;
 import yuuine.docmind.common.plugin.StoragePlugin;
 import yuuine.docmind.common.plugin.VectorStorePlugin;
@@ -45,7 +44,6 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
     private final DocumentParserProperties parserProperties;
     private final DocumentUploadProperties uploadProperties;
     private final VectorStorePlugin vectorStorePlugin;
-    private final EmbeddingPlugin embeddingPlugin;
 
     @Override
     @Async("documentParsingExecutor")
@@ -122,7 +120,7 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
 
         List<VectorStorePlugin.VectorChunk> vectorChunks = new java.util.ArrayList<>();
 
-        log.info("开始向量化 {} 个 chunks", chunks.size());
+        log.info("开始存储到向量库: documentId={}, chunks={}", documentId, chunks.size());
         for (int i = 0; i < chunks.size(); i++) {
             String chunkContent = chunks.get(i);
             String chunkId = UUID.randomUUID().toString();
@@ -135,17 +133,14 @@ public class DocumentParsingServiceImpl implements DocumentParsingService {
                     .build();
             documentChunkRepository.insert(chunk);
 
-            float[] embedding = embeddingPlugin.embed(chunkContent);
             vectorChunks.add(new VectorStorePlugin.VectorChunk(
                     chunkId,
                     String.valueOf(documentId),
                     chunkContent,
-                    embedding,
                     i
             ));
         }
 
-        log.info("开始存储到向量库: documentId={}, chunks={}", documentId, vectorChunks.size());
         vectorStorePlugin.addChunks(vectorChunks);
     }
 }
