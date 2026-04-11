@@ -10,7 +10,6 @@
 *.tar.gz
 *.rar
 
-# Maven
 target/
 pom.xml.tag
 pom.xml.releaseBackup
@@ -38,7 +37,6 @@ buildNumber.properties
 *~
 out/
 
-# NetBeans
 nbproject/private/
 build/
 nbbuild/
@@ -46,13 +44,11 @@ dist/
 nbdist/
 .nb-gradle/
 
-# Eclipse
 .apt_generated
 .classpath
 .factorypath
 .project
 .settings
-.springBeans
 .sts4-cache
 bin/
 
@@ -68,11 +64,9 @@ lerna-debug.log*
 dist-ssr/
 *.local
 
-# Frontend build output
 frontend/dist/
 frontend/.vite/
 
-# Testing & Coverage
 coverage/
 .nyc_output
 .eslintcache
@@ -95,24 +89,44 @@ coverage/
 # ========================================
 # Python / Vector Service
 # ========================================
-# Virtual environments
+
 vector-service/venv/
 vector-service/.venv/
+vector-service/venv_test/
 venv/
 .venv/
 
-# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 vector-service/__pycache__/
+vector-service/*.pyc
+
+vector-service/data/
+vector-service/*.egg-info/
+vector-service/dist/
+vector-service/build/
+
+.pytest_cache/
+.coverage
+*.cov
 
 # ========================================
-# Logs
+# Environment & Secrets
+# ========================================
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ========================================
+# Logs & Local Data
 # ========================================
 logs/
 *.log
 local-docs/
+*.log.*
 
 # ========================================
 # OS
@@ -131,8 +145,6 @@ $RECYCLE.BIN/
 # Application
 # ========================================
 data/
-*.env
-!*.env.example
 storage/
 uploads/
 temp/
@@ -145,7 +157,6 @@ application-prod.yml
 *.seed
 *.pid.lock
 
-# Additional Java
 *.ctxt
 .mtj.tmp/
 hs_err_pid*
@@ -158,5 +169,7 @@ replay_pid*
 .cursor/
 .agent/
 
-# Demo
+# ========================================
+# Demo & Temporary
+# ========================================
 demo/

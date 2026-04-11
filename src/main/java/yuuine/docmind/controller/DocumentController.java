@@ -95,7 +95,7 @@ public class DocumentController {
             
             response.setContentType(downloadResponse.getContentType());
             response.setContentLengthLong(downloadResponse.getFileSize());
-            String encodedFilename = URLEncoder.encode(downloadResponse.getFilename(), StandardCharsets.UTF_8.toString())
+            String encodedFilename = URLEncoder.encode(downloadResponse.getFilename(), StandardCharsets.UTF_8)
                     .replace("+", "%20");
             response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFilename);
             
