@@ -59,3 +59,11 @@ docmind:
       connect-timeout: 10s
       read-timeout: 30s
       hybrid-enabled: true
+
+audit:
+  log:
+    thread-pool:
+      core-size: 4
+      max-size: 10
+      queue-capacity: 500
+      keep-alive-seconds: 60

@@ -1,5 +1,7 @@
 package yuuine.docmind.core.audit.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -25,6 +27,7 @@ public class AuditLogPersistenceService {
     private static final DateTimeFormatter FILE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final AuditLogRepository auditLogRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @Async("auditLogExecutor")
     public void saveAsync(AuditLog auditLog) {
@@ -63,10 +66,11 @@ public class AuditLogPersistenceService {
         if (!dir.exists()) {
             dir.mkdirs();
         }
-        String fileName = "audit-fallback-" + LocalDateTime.now().format(FILE_DATE_FORMAT) + ".log";
+        String fileName = "audit-fallback-" + LocalDateTime.now().format(FILE_DATE_FORMAT) + ".json";
         File file = new File(dir, fileName);
         try (PrintWriter writer = new PrintWriter(new FileWriter(file, true))) {
-            writer.println(LocalDateTime.now() + " | " + auditLog);
+            String json = objectMapper.writeValueAsString(auditLog);
+            writer.println(json);
         } catch (IOException e) {
             log.error("CRITICAL: Failed to write audit log to fallback file: {}", e.getMessage());
         }

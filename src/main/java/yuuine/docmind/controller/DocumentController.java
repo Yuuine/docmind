@@ -32,7 +32,7 @@ public class DocumentController {
 
     private final DocumentService documentService;
 
-    @Audited(action = AuditAction.DOCUMENT_UPLOAD, resourceType = "Document", resourceIdParam = "userId", describe = "上传文档")
+    @Audited(action = AuditAction.DOCUMENT_UPLOAD, resourceType = "Document", describe = "上传文档")
     @PostMapping("/upload")
     public Result<DocumentResponse> upload(@RequestParam("file") MultipartFile file,
                                            @RequestParam(value = "filename", required = false) String filename,
@@ -59,7 +59,7 @@ public class DocumentController {
         return Result.success(documentService.getDocument(id, userId));
     }
 
-    @Audited(action = AuditAction.DOCUMENT_DELETE, resourceType = "Document", resourceIdParam = "id", describe = "删除文档")
+    @Audited(action = AuditAction.DOCUMENT_DELETE, resourceType = "Document", resourceIdFromPath = "id", describe = "删除文档")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id, @RequestParam Long userId) {
         documentService.deleteDocument(id, userId);
@@ -84,7 +84,7 @@ public class DocumentController {
         return Result.success(documentService.getDocumentChunk(chunkId, userId));
     }
 
-    @Audited(action = AuditAction.DOCUMENT_DOWNLOAD, resourceType = "Document", resourceIdParam = "id", describe = "下载文档")
+    @Audited(action = AuditAction.DOCUMENT_DOWNLOAD, resourceType = "Document", resourceIdFromPath = "id", describe = "下载文档")
     @GetMapping("/{id}/download")
     public void download(@PathVariable Long id, @RequestParam Long userId, HttpServletResponse response) {
         log.info("下载文档: documentId={}, userId={}", id, userId);

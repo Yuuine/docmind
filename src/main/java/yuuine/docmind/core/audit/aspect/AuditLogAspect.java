@@ -76,8 +76,8 @@ public class AuditLogAspect {
             return result;
         } catch (Throwable e) {
             auditLogBuilder.status(AuditStatus.FAILURE.name());
-            auditLogBuilder.errorMessage(e.getMessage());
-            auditLogBuilder.responseData(toJson(Map.of("error", e.getMessage()), auditAnnotation.sensitiveParams()));
+            auditLogBuilder.errorMessage(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            auditLogBuilder.responseData(toJson(Map.of("error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), auditAnnotation.sensitiveParams()));
             throw e;
         } finally {
             long executionTime = System.currentTimeMillis() - startTime;
@@ -96,6 +96,9 @@ public class AuditLogAspect {
     }
 
     private String toJson(Object obj, String[] sensitiveParams) {
+        if (obj == null) {
+            return null;
+        }
         try {
             String json = objectMapper.writeValueAsString(obj);
             return sensitiveDataFilter.filterSensitiveData(json, sensitiveParams, false);

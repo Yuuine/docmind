@@ -29,6 +29,7 @@ import yuuine.docmind.core.document.model.Document;
 import yuuine.docmind.core.document.repository.DocumentRepository;
 
 import java.util.ArrayList;
+import java.util.DoubleSummaryStatistics;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -338,6 +339,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                     .map(d -> String.valueOf(d.getId()))
                     .toList();
             if (allowedFileIds.isEmpty()) {
+                log.info("RAG检索: 用户没有上传任何文档");
                 return "";
             }
 
@@ -347,6 +349,27 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                     query, queryEmbedding, topK, allowedFileIds);
 
             if (searchResults == null || searchResults.isEmpty()) {
+                log.info("RAG检索: 未找到任何相关文档");
+                return "";
+            }
+
+            double[] confidenceResult = calculateConfidenceScore(searchResults);
+            double confidenceScore = confidenceResult[0];
+            double topKAvg = confidenceResult[1];
+            double top1Score = confidenceResult[2];
+            double stdDev = confidenceResult[3];
+            double countScore = confidenceResult[4];
+
+            boolean isConfident = confidenceScore > ragRetrievalProperties.getConfidenceThreshold();
+
+            log.info("RAG检索完成: 查询='{}', 结果数={}, 置信度评分={}, 阈值={}, 置信={}, "
+                            + "Top-K均值={}, Top1={}, 标准差={}, 数量得分={}",
+                    query, searchResults.size(), confidenceScore,
+                    ragRetrievalProperties.getConfidenceThreshold(), isConfident,
+                    topKAvg, top1Score, stdDev, countScore);
+
+            if (!isConfident) {
+                log.info("RAG检索结果置信度低于阈值，返回空上下文（友好提示由前端展示）");
                 return "";
             }
 
@@ -380,6 +403,62 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
             log.warn("RAG检索失败, 降级为无RAG模式, error={}", e.getMessage(), e);
             return "";
         }
+    }
+
+    private double[] calculateConfidenceScore(List<VectorStorePlugin.SearchResult> searchResults) {
+        int size = searchResults.size();
+        double[] scores = searchResults.stream()
+                .mapToDouble(VectorStorePlugin.SearchResult::score)
+                .toArray();
+
+        int topK = Math.min(ragRetrievalProperties.getConfidenceTopK(), size);
+        double topKAvg = 0.0;
+        if (topK > 0) {
+            DoubleSummaryStatistics topKStats = java.util.Arrays.stream(scores)
+                    .sorted()
+                    .skip(size - topK)
+                    .summaryStatistics();
+            topKAvg = topKStats.getAverage();
+        }
+
+        double top1Score = java.util.Arrays.stream(scores).max().orElse(scores.length > 0 ? scores[0] : -100.0);
+
+        double stdDev = 0.0;
+        if (size > 1) {
+            double mean = java.util.Arrays.stream(scores).average().orElse(0.0);
+            stdDev = Math.sqrt(java.util.Arrays.stream(scores)
+                    .map(s -> Math.pow(s - mean, 2))
+                    .average()
+                    .orElse(0.0));
+        }
+
+        double minRange = ragRetrievalProperties.getScoreRangeMin();
+        double maxRange = ragRetrievalProperties.getScoreRangeMax();
+        double range = maxRange - minRange;
+
+        double normalizedTopKAvg = range > 0 ? (topKAvg - minRange) / range : 0.5;
+        normalizedTopKAvg = Math.max(0.0, Math.min(1.0, normalizedTopKAvg));
+
+        double normalizedTop1 = range > 0 ? (top1Score - minRange) / range : 0.5;
+        normalizedTop1 = Math.max(0.0, Math.min(1.0, normalizedTop1));
+
+        double normalizedStdDev = range > 0 ? stdDev / range : 0.0;
+        normalizedStdDev = Math.max(0.0, Math.min(1.0, normalizedStdDev));
+
+        int minResults = ragRetrievalProperties.getMinResults();
+        double countScore = size >= minResults ? 1.0 : (double) size / minResults;
+
+        double confidenceScore =
+                ragRetrievalProperties.getTopKWeight() * normalizedTopKAvg +
+                ragRetrievalProperties.getTop1Weight() * normalizedTop1 -
+                ragRetrievalProperties.getStddevWeight() * normalizedStdDev +
+                ragRetrievalProperties.getCountWeight() * countScore;
+
+        if (top1Score < ragRetrievalProperties.getMinTop1Score()) {
+            confidenceScore *= 0.5;
+        }
+
+        return new double[]{confidenceScore, topKAvg, top1Score, stdDev, countScore};
     }
 
     private String buildRetrievedDocsJson(String context) {

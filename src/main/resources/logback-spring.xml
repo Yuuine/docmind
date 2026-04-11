@@ -24,6 +24,28 @@
         </rollingPolicy>
     </appender>
 
+    <!-- 审计日志文件输出配置-->
+    <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>./logs/audit.log</file>
+
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>./logs/%d{yyyy-MM-dd}/audit.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 审计日志独立logger -->
+    <logger name="yuuine.docmind.core.audit" level="INFO" additivity="false">
+        <appender-ref ref="AUDIT_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
     <!-- 根日志级别 -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>   <!-- Spring Boot 提供的彩色控制台 -->

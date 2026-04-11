@@ -38,7 +38,7 @@ public class SensitiveDataFilter {
     private static final Pattern CREDIT_CARD_PATTERN = Pattern.compile(
             "\\b\\d{4}[- ]?\\d{4}[- ]?\\d{4}[- ]?\\d{4}\\b");
     private static final Pattern IP_V4_PATTERN = Pattern.compile(
-            "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b");
+            "\\b(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)\\b");
 
     public String filterSensitiveData(String jsonString, String[] additionalSensitiveParams) {
         return filterSensitiveData(jsonString, additionalSensitiveParams, true);

@@ -1,10 +1,9 @@
 package yuuine.docmind.plugin.python;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import yuuine.docmind.common.plugin.VectorStorePlugin;
@@ -16,6 +15,7 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
 
     private final PythonVectorStoreProperties properties;
     private final RestTemplate restTemplate;
+    @Getter
     private final ObjectMapper objectMapper;
 
     public PythonVectorStorePlugin(
@@ -191,4 +191,5 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
             throw e;
         }
     }
+
 }
