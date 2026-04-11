@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import yuuine.docmind.core.chat.config.RagPromptProperties;
 import yuuine.docmind.core.chat.model.ChatMessage;
 import yuuine.docmind.core.chat.service.PromptAssembler;
+import yuuine.docmind.core.chat.valueobject.MessageRole;
 
 @Slf4j
 @Service
@@ -37,8 +38,17 @@ public class PromptAssemblerImpl implements PromptAssembler {
         messages.add(sysMsg);
 
         // 2. 历史消息截断：按轮数取最近 N 轮
+        boolean willAppendRagUser = (query != null && !query.isBlank())
+                || (context != null && !context.isBlank());
         if (history != null && !history.isEmpty()) {
             List<ChatMessage> truncatedHistory = truncateByRounds(history, maxHistoryRounds);
+            // 末尾会追加「当前问题 + 参考资料」合成 user 消息时，去掉历史中最后一条 USER，避免同一轮问题重复出现两次
+            if (willAppendRagUser && !truncatedHistory.isEmpty()) {
+                int lastIdx = truncatedHistory.size() - 1;
+                if (truncatedHistory.get(lastIdx).getRole() == MessageRole.USER) {
+                    truncatedHistory = new ArrayList<>(truncatedHistory.subList(0, lastIdx));
+                }
+            }
             for (ChatMessage msg : truncatedHistory) {
                 if (msg.getRole() == null) continue;
                 Map<String, String> m = new HashMap<>(2);
@@ -48,19 +58,29 @@ public class PromptAssemblerImpl implements PromptAssembler {
             }
         }
 
-        // 3. Context 消息（仅当 context 非空时添加）
-        if (context != null && !context.isBlank()) {
-            Map<String, String> ctxMsg = new HashMap<>(2);
-            ctxMsg.put("role", "user");
-            ctxMsg.put("content", ragPromptProperties.formatContext(context));
-            messages.add(ctxMsg);
+        // 3. 合并 Context 和 Query 为一条 user 消息（遵循 OpenAI API 规范）
+        StringBuilder userContent = new StringBuilder();
+        
+        // 先添加 query
+        if (query != null && !query.isBlank()) {
+            userContent.append(ragPromptProperties.formatQuery(query));
         }
-
-        // 4. Query 消息（最后一条）
-        Map<String, String> queryMsg = new HashMap<>(2);
-        queryMsg.put("role", "user");
-        queryMsg.put("content", ragPromptProperties.formatQuery(query));
-        messages.add(queryMsg);
+        
+        // 再添加 context（如果存在）
+        if (context != null && !context.isBlank()) {
+            if (!userContent.isEmpty()) {
+                userContent.append("\n\n");
+            }
+            userContent.append(ragPromptProperties.formatContext(context));
+        }
+        
+        // 只有当内容非空时才添加消息
+        if (!userContent.isEmpty()) {
+            Map<String, String> userMsg = new HashMap<>(2);
+            userMsg.put("role", "user");
+            userMsg.put("content", userContent.toString());
+            messages.add(userMsg);
+        }
 
         return messages;
     }

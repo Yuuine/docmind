@@ -67,8 +67,13 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
     }
 
     @Override
-    public List<SearchResult> search(String query, float[] queryEmbedding, int topK) {
-        log.info("Python VectorStore 搜索: query={}, topK={}", query, topK);
+    public List<SearchResult> search(String query, float[] queryEmbedding, int topK, List<String> allowedFileIds) {
+        log.info("Python VectorStore 搜索: query={}, topK={}, fileIdFilterSize={}", query, topK,
+                allowedFileIds == null ? "none" : allowedFileIds.size());
+
+        if (allowedFileIds != null && allowedFileIds.isEmpty()) {
+            return new ArrayList<>();
+        }
 
         Map<String, Object> request = new HashMap<>();
         if (queryEmbedding != null) {
@@ -77,6 +82,9 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
             request.put("query", query);
         }
         request.put("topK", topK);
+        if (allowedFileIds != null) {
+            request.put("fileIds", allowedFileIds);
+        }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

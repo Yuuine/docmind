@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 import org.springframework.stereotype.Service;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
@@ -22,13 +23,14 @@ import yuuine.docmind.common.plugin.EmbeddingPlugin;
 import yuuine.docmind.common.plugin.RerankPlugin;
 import yuuine.docmind.common.plugin.VectorStorePlugin;
 import yuuine.docmind.core.chat.config.RagPromptProperties;
-import yuuine.docmind.core.chat.service.HistoryMessageBuilder;
+import yuuine.docmind.core.chat.config.RagRetrievalProperties;
 import yuuine.docmind.core.chat.service.PromptAssembler;
+import yuuine.docmind.core.document.model.Document;
+import yuuine.docmind.core.document.repository.DocumentRepository;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 @Slf4j
@@ -45,7 +47,8 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
     private final RerankPlugin rerankPlugin;
     private final PromptAssembler promptAssembler;
     private final RagPromptProperties ragPromptProperties;
-    private final HistoryMessageBuilder historyMessageBuilder;
+    private final RagRetrievalProperties ragRetrievalProperties;
+    private final DocumentRepository documentRepository;
     private final Executor ragTaskExecutor;
 
     public ChatServiceImpl(
@@ -59,7 +62,8 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
             RerankPlugin rerankPlugin,
             PromptAssembler promptAssembler,
             RagPromptProperties ragPromptProperties,
-            HistoryMessageBuilder historyMessageBuilder,
+            RagRetrievalProperties ragRetrievalProperties,
+            DocumentRepository documentRepository,
             @Qualifier("ragTaskExecutor") Executor ragTaskExecutor
     ) {
         this.chatSessionRepository = chatSessionRepository;
@@ -72,7 +76,8 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         this.rerankPlugin = rerankPlugin;
         this.promptAssembler = promptAssembler;
         this.ragPromptProperties = ragPromptProperties;
-        this.historyMessageBuilder = historyMessageBuilder;
+        this.ragRetrievalProperties = ragRetrievalProperties;
+        this.documentRepository = documentRepository;
         this.ragTaskExecutor = ragTaskExecutor;
     }
 
@@ -134,6 +139,11 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
 
     @Override
     public Flux<ServerSentEvent<String>> sendMessageStream(ChatMessageRequest request, Long userId) {
+        return Flux.defer(() -> sendMessageStreamPipeline(request, userId))
+                .subscribeOn(Schedulers.fromExecutor(ragTaskExecutor));
+    }
+
+    private Flux<ServerSentEvent<String>> sendMessageStreamPipeline(ChatMessageRequest request, Long userId) {
         ChatSession session = chatSessionRepository.selectById(request.getSessionId());
         if (session == null) {
             throw new BusinessException(ErrorCode.CHAT_SESSION_NOT_FOUND);
@@ -151,7 +161,9 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
 
         LambdaQueryWrapper<AIModel> modelQuery = new LambdaQueryWrapper<>();
         modelQuery.eq(AIModel::getUserId, userId)
-                .eq(AIModel::getIsActive, true);
+                .eq(AIModel::getIsActive, true)
+                .orderByDesc(AIModel::getUpdatedAt)
+                .last("LIMIT 1");
         AIModel activeModel = aiModelRepository.selectOne(modelQuery);
 
         if (activeModel == null) {
@@ -173,19 +185,20 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 .orderByAsc(ChatMessage::getCreatedAt);
         List<ChatMessage> chatMessages = chatMessageRepository.selectList(msgQuery);
 
+        // 历史消息包含所有消息（包括刚插入的用户消息）
+        // PromptAssembler 会正确处理消息截断
         List<ChatMessage> historyMessages = new ArrayList<>(chatMessages);
-        if (!historyMessages.isEmpty() && historyMessages.getLast().getRole() == MessageRole.USER) {
-            historyMessages.removeLast();
-        }
 
-        String context = retrieveContext(request.getContent());
+        String context = retrieveContext(userId, request.getContent());
         final String finalContext = context;
 
-        List<Map<String, String>> assembledMessages = historyMessageBuilder.buildHistoryMessages(
-            historyMessages,
+        // 使用 PromptAssembler 构建消息列表
+        List<Map<String, String>> assembledMessages = promptAssembler.assemble(
             ragPromptProperties.getSystem(),
+            historyMessages,
             context,
-            request.getContent()
+            request.getContent(),
+            ragPromptProperties.getMaxHistoryRounds()
         );
 
         List<ChatMessage> llmMessages = assembledMessages.stream()
@@ -315,11 +328,22 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         chatSessionRepository.deleteById(sessionId);
     }
 
-    private String retrieveContext(String query) {
+    private String retrieveContext(Long userId, String query) {
         try {
-            final int topK = 5;
+            LambdaQueryWrapper<Document> docQuery = new LambdaQueryWrapper<>();
+            docQuery.eq(Document::getUserId, userId).select(Document::getId);
+            List<Document> userDocs = documentRepository.selectList(docQuery);
+            List<String> allowedFileIds = userDocs.stream()
+                    .map(d -> String.valueOf(d.getId()))
+                    .toList();
+            if (allowedFileIds.isEmpty()) {
+                return "";
+            }
+
+            int topK = ragRetrievalProperties.getTopK();
             float[] queryEmbedding = embeddingPlugin.embed(query);
-            List<VectorStorePlugin.SearchResult> searchResults = vectorStorePlugin.search(query, queryEmbedding, topK);
+            List<VectorStorePlugin.SearchResult> searchResults = vectorStorePlugin.search(
+                    query, queryEmbedding, topK, allowedFileIds);
 
             if (searchResults == null || searchResults.isEmpty()) {
                 return "";
@@ -330,8 +354,11 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 .toList();
 
             List<RerankPlugin.RerankResult> rerankedDocs = null;
-            if (rerankPlugin != null && !documents.isEmpty()) {
-                rerankedDocs = rerankPlugin.rerank(query, documents, Math.min(topK, documents.size()));
+            if (rerankPlugin != null
+                    && ragRetrievalProperties.isRerankEnabled()
+                    && !documents.isEmpty()) {
+                int rerankK = Math.min(ragRetrievalProperties.getRerankTopK(), documents.size());
+                rerankedDocs = rerankPlugin.rerank(query, documents, rerankK);
             }
 
             StringBuilder contextBuilder = new StringBuilder();

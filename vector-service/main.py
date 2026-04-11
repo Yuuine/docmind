@@ -35,9 +35,12 @@ class AddChunksRequest(BaseModel):
 
 
 class SearchRequest(BaseModel):
+    """fileIds, when set, limits search to chunks whose metadata fileId is in the list (per-user document scope)."""
+
     query: Optional[str] = None
     queryEmbedding: Optional[List[float]] = None
     topK: int = 10
+    fileIds: Optional[List[str]] = None
 
 
 class DeleteRequest(BaseModel):
@@ -205,7 +208,8 @@ async def search_vectors(request: SearchRequest):
         results = chroma_client.search(
             query=request.query,
             query_embedding=request.queryEmbedding,
-            top_k=request.topK
+            top_k=request.topK,
+            file_ids=request.fileIds,
         )
         logger.info("Search completed, found %d results", len(results))
         return {"status": "success", "hits": results}

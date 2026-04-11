@@ -82,11 +82,17 @@ export const chatApi = {
     api.get<ChatMessage[]>(`/chat/sessions/${id}/messages`, { params: { userId } }),
   sendMessage: (id: number, data: { content: string }, userId?: number) =>
     api.post<ChatMessage>(`/chat/sessions/${id}/messages`, data, { params: { userId } }),
-  sendMessageStream: (id: number, content: string, userId?: number): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
+  sendMessageStream: (
+    id: number,
+    content: string,
+    userId?: number,
+    signal?: AbortSignal
+  ): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
     const params = new URLSearchParams({ content })
     if (userId != null) params.set('userId', String(userId))
     return fetch(`/api/v1/chat/sessions/${id}/messages/stream?${params.toString()}`, {
-      headers: { Accept: 'text/event-stream' }
+      headers: { Accept: 'text/event-stream' },
+      signal
     }).then(res => {
       if (!res.ok || !res.body) {
         throw new StreamHttpError(res.status, res.statusText)

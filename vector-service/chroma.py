@@ -166,7 +166,8 @@ class ChromaClient:
         self,
         query: Optional[str] = None,
         query_embedding: Optional[List[float]] = None,
-        top_k: int = 10
+        top_k: int = 10,
+        file_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """向量相似度搜索
 
@@ -188,22 +189,35 @@ class ChromaClient:
             logger.warning("Search called without query or query_embedding")
             raise ValueError("Either query or query_embedding must be provided")
 
-        logger.info("ChromaDB search: query=%s, has_embedding=%s, top_k=%d",
-                     query is not None, query_embedding is not None, top_k)
+        if file_ids is not None and len(file_ids) == 0:
+            logger.info("ChromaDB search: empty file_ids filter, returning no results")
+            return []
+
+        logger.info(
+            "ChromaDB search: query=%s, has_embedding=%s, top_k=%d, file_id_filter=%s",
+            query is not None,
+            query_embedding is not None,
+            top_k,
+            "none" if file_ids is None else len(file_ids),
+        )
+
+        where_filter: Optional[Dict[str, Any]] = None
+        if file_ids is not None:
+            where_filter = {"fileId": {"$in": file_ids}}
 
         try:
             results = []
 
+            query_kwargs: Dict[str, Any] = {"n_results": top_k}
+            if where_filter is not None:
+                query_kwargs["where"] = where_filter
+
             if query is not None:
-                query_results = self.collection.query(
-                    query_texts=[query],
-                    n_results=top_k
-                )
+                query_kwargs["query_texts"] = [query]
+                query_results = self.collection.query(**query_kwargs)
             elif query_embedding is not None:
-                query_results = self.collection.query(
-                    query_embeddings=[query_embedding],
-                    n_results=top_k
-                )
+                query_kwargs["query_embeddings"] = [query_embedding]
+                query_results = self.collection.query(**query_kwargs)
 
             if "ids" in query_results and query_results["ids"]:
                 ids_list = query_results["ids"][0]

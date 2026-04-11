@@ -1,5 +1,6 @@
 spring:
   config:
+    # RAG：提示词模板、历史子配置、检索 topK/重排等，见 classpath:rag-prompt.yml
     import: optional:classpath:rag-prompt.yml
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/docmind?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
@@ -21,6 +22,7 @@ logging:
     org.springframework.web: INFO
     org.flywaydb: INFO
 
+# 聊天 RAG 流水线线程池（阻塞 DB/检索/拼 prompt 在 rag- 线程上执行，见 ChatAsyncConfig）
 chat:
   rag:
     thread-pool:

@@ -207,7 +207,8 @@ export const useChatStore = defineStore('chat', () => {
       const reader = await chatApi.sendMessageStream(
         currentSessionId.value,
         content,
-        userId.value
+        userId.value,
+        abortController.value?.signal
       )
       await processStreamReader(reader)
     } catch (error) {

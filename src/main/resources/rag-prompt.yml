@@ -1,12 +1,47 @@
+# =============================================================================
+# RAG 提示词与检索（由 spring.config.import 加载，可被环境或 profile 覆盖）
+# 绑定类：
+#   - rag.prompt.*           → RagPromptProperties
+#   - rag.prompt.history.*   → HistoryMessageProperties（预留 / 其他组装逻辑）
+#   - rag.retrieval.*        → RagRetrievalProperties
+# =============================================================================
+
 rag:
+  # ---------------------------------------------------------------------------
+  # 对话提示：系统人设、历史轮数、用户消息里的「问题 / 参考资料」模板
+  # 占位符：{query}、{context} 勿删；多行 system 建议用 | 块
+  # ---------------------------------------------------------------------------
   prompt:
     system: |
-      你是潇潇
+      你是「潇潇」，一位严谨的文档问答助手。
+      请仅依据下方「参考资料」中的内容作答；资料不足以回答时请明确说明，不要编造。
+      回答简洁、分点清晰，必要时使用 Markdown。
+    # 与 PromptAssembler 中历史截断一致：最近 N 个「轮次」（按 user+assistant 估算，约 max-history-rounds * 2 条消息）
     max-history-rounds: 10
-    context-template: "参考资料：\n{context}"
-    query-template: "当前问题：{query}"
+    # 合成在单条 user 消息里、接在「当前问题」之后的段落；{context} 为检索拼接后的正文
+    context-template: |
+      参考资料：
+      {context}
+    # 合成在单条 user 消息里、通常与上文的「最后一条 USER」去重后单独出现；{query} 为用户原文
+    query-template: |
+      当前问题：
+      {query}
+
+    # HistoryMessageBuilder*
     history:
       enabled: true
       max-rounds: 10
       include-system-prompt: true
       include-context: true
+
+  # ---------------------------------------------------------------------------
+  # 检索：向量召回条数、是否重排、重排后送入上下文的条数
+  # 向量检索范围由业务按用户文档 ID 过滤（见 ChatServiceImpl / vector fileIds）
+  # ---------------------------------------------------------------------------
+  retrieval:
+    # 向量库相似检索返回的最大 chunk 数
+    top-k: 8
+    # 为 false 时跳过 Rerank，直接使用向量检索顺序
+    rerank-enabled: false
+    # 重排后实际写入 prompt 的 chunk 数（≤ 检索返回条数）
+    rerank-top-k: 5
