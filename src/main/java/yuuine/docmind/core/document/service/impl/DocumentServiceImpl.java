@@ -27,7 +27,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -141,7 +143,11 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
         queryWrapper.eq(Document::getUserId, userId);
 
         if (request.getFilename() != null && !request.getFilename().isBlank()) {
-            queryWrapper.like(Document::getFilename, request.getFilename());
+            // 子串匹配且不把用户输入中的 %、_ 当作 LIKE 通配符（与 INSTR 字面量一致）
+            String term = request.getFilename().trim();
+            if (!term.isEmpty()) {
+                queryWrapper.apply("INSTR(filename, {0}) > 0", term);
+            }
         }
         if (request.getStatus() != null) {
             queryWrapper.eq(Document::getStatus, request.getStatus());
@@ -167,6 +173,26 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDocument(Long documentId, Long userId) {
+        performDeleteDocument(documentId, userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteDocuments(List<Long> documentIds, Long userId) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            return;
+        }
+        List<Long> distinct = documentIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        for (Long id : distinct) {
+            performDeleteDocument(id, userId);
+        }
+        log.info("批量删除文档完成: userId={}, count={}", userId, distinct.size());
+    }
+
+    private void performDeleteDocument(Long documentId, Long userId) {
         Document document = documentRepository.selectById(documentId);
         if (document == null) {
             throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);

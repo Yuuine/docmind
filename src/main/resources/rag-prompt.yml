@@ -54,12 +54,14 @@ rag:
     rerank-top-k: 5
 
     # ---------------------------------------------------------------------------
-    # 置信度检测：多维度置信度评分算法
-    # 算法：confidenceScore = w1*TopK均值 + w2*Top1 - w3*标准差 + w4*数量得分
-    # 分数归一化到 [0, 1]，阈值默认为 0.5
+    # 置信门控：① Top1 原始分硬门槛 ② 综合分（归一化须在 score-range 与向量量纲一致）
+    # Python/Chroma：score≈1-distance，约在 [0,1]，故 score-range 用 0~1；勿再用 -30~0 以免弱相关被算成高分
     # ---------------------------------------------------------------------------
-    # 基础阈值：置信度评分低于此值时认为检索不相关
-    confidence-threshold: 0.5
+    # 综合置信度阈值（略低于旧 0.5，与 0~1 归一化后的尺度匹配）
+    confidence-threshold: 0.28
+    # Top1 原始分硬门控（关闭则设 raw-top1-gate-enabled: false）
+    raw-top1-gate-enabled: true
+    min-raw-top1-for-context: 0.08
     # 是否在检索结果不相关时启用友好提示
     friendly-prompt-enabled: true
     # 友好提示语（当检索不相关时使用）
@@ -80,9 +82,9 @@ rag:
     min-top1-score: -25.0
     # 最少结果数量要求（低于此值数量得分打折）
     min-results: 2
-    # ChromaDB 分数范围（用于归一化）
-    score-range-min: -30.0
-    score-range-max: 0.0
+    # 与向量插件 score 量纲一致（当前 Python 为 0~1 相似度）
+    score-range-min: 0.0
+    score-range-max: 1.0
 
     # 丢弃过短 chunk（字符数），减少分块/解析噪声；0 表示关闭
     min-chunk-content-length: 20

@@ -1,6 +1,7 @@
 package yuuine.docmind.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -9,6 +10,7 @@ import yuuine.docmind.common.model.Result;
 import yuuine.docmind.core.audit.annotation.Audited;
 import yuuine.docmind.core.audit.dto.PageResponse;
 import yuuine.docmind.core.audit.valueobject.AuditAction;
+import yuuine.docmind.core.document.dto.DocumentBatchDeleteRequest;
 import yuuine.docmind.core.document.dto.DocumentChunkInfo;
 import yuuine.docmind.core.document.dto.DocumentDownloadResponse;
 import yuuine.docmind.core.document.dto.DocumentQueryRequest;
@@ -63,6 +65,14 @@ public class DocumentController {
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id, @RequestParam Long userId) {
         documentService.deleteDocument(id, userId);
+        return Result.success();
+    }
+
+    @Audited(action = AuditAction.DOCUMENT_DELETE, resourceType = "Document", describe = "批量删除文档")
+    @PostMapping("/batch-delete")
+    public Result<Void> batchDelete(@Valid @RequestBody DocumentBatchDeleteRequest request,
+                                    @RequestParam Long userId) {
+        documentService.deleteDocuments(request.getIds(), userId);
         return Result.success();
     }
 

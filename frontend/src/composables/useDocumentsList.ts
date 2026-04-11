@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import axios from 'axios'
 import { documentApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import type { Document } from '@/types'
@@ -13,23 +14,32 @@ export function useDocumentsList() {
   const totalPages = ref(0)
   const searchQuery = ref('')
 
+  let listAbortController: AbortController | null = null
+
   async function loadDocuments() {
     const userId = userStore.user?.id
     if (!userId) return
-    const params: { page?: number; pageSize?: number; filename?: string } = { 
-      page: currentPage.value, 
-      pageSize 
+    listAbortController?.abort()
+    listAbortController = new AbortController()
+    const signal = listAbortController.signal
+
+    const params: { page?: number; pageSize?: number; filename?: string } = {
+      page: currentPage.value,
+      pageSize
     }
     if (searchQuery.value.trim()) {
       params.filename = searchQuery.value.trim()
     }
-    console.log('loadDocuments called with params:', params)
-    const result = await documentApi.list(params, userId)
-    console.log('API response:', result)
-    documents.value = normalizeDocumentList(result.records)
-    total.value = result.total
-    totalPages.value = result.totalPages
-    console.log('documents:', documents.value.length, 'total:', total.value, 'totalPages:', totalPages.value)
+    try {
+      const result = await documentApi.list(params, userId, signal)
+      documents.value = normalizeDocumentList(result.records)
+      total.value = result.total
+      totalPages.value = result.totalPages
+    } catch (e: unknown) {
+      if (axios.isCancel(e)) return
+      if (typeof e === 'object' && e !== null && (e as { code?: string }).code === 'ERR_CANCELED') return
+      throw e
+    }
   }
 
   function setPage(page: number) {

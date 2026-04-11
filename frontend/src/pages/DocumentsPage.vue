@@ -18,7 +18,31 @@
         <Icon name="upload" :size="16" />
         <span class="upload-btn-text">上传</span>
       </button>
-      <input ref="fileInputRef" type="file" accept=".pdf,.doc,.docx,.txt,.md" hidden @change="onFileSelected" />
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept=".pdf,.doc,.docx,.txt,.md"
+        multiple
+        hidden
+        @change="onFileSelected"
+      />
+    </div>
+
+    <div
+      v-if="selectedCount > 0 && (documents.length > 0 || searchQuery)"
+      class="bulk-bar"
+    >
+      <span class="bulk-hint">已选 {{ selectedCount }} 项</span>
+      <div class="bulk-actions">
+        <button type="button" class="bulk-text-btn" @click="toggleSelectAllOnPage">
+          {{ allOnPageSelected ? '取消本页' : '全选本页' }}
+        </button>
+        <button type="button" class="bulk-text-btn" @click="clearSelection">清空选择</button>
+        <button type="button" class="bulk-delete-btn" @click="confirmBatchDelete">
+          <Icon name="trash" :size="14" />
+          批量删除
+        </button>
+      </div>
     </div>
 
     <div v-if="documents.length === 0 && !searchQuery" class="empty-wrapper">
@@ -31,8 +55,8 @@
         @drop.prevent="onDrop"
       >
         <Icon name="upload" :size="32" />
-        <p class="upload-hint">点击或拖拽文件至此上传</p>
-        <p class="upload-formats">支持 PDF、DOC、DOCX、TXT、MD 格式</p>
+        <p class="upload-hint">点击或拖拽文件至此上传（支持多选）</p>
+        <p class="upload-formats">支持 PDF、DOC、DOCX、TXT、MD 格式，单次最多 {{ maxBatchUpload }} 个</p>
         <div v-if="isUploading && uploadProgress > 0" class="progress-bar">
           <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
         </div>
@@ -47,6 +71,14 @@
           class="doc-row"
         >
           <div class="doc-card" :class="{ 'is-expanded': isExpanded(doc.id) }" @click="toggleExpand(doc.id)">
+            <label class="doc-checkbox-wrap" @click.stop>
+              <input
+                type="checkbox"
+                class="doc-checkbox"
+                :checked="isSelected(doc.id)"
+                @change="toggleSelect(doc.id)"
+              />
+            </label>
             <div class="doc-info">
               <Icon name="document" :size="20" />
               <span class="doc-filename">{{ doc.filename }}</span>
@@ -121,7 +153,7 @@
     <div v-if="isDragging && (documents.length > 0 || searchQuery)" class="drop-overlay">
       <div class="drop-overlay-content">
         <Icon name="upload" :size="48" />
-        <p class="drop-overlay-text">释放文件以上传</p>
+        <p class="drop-overlay-text">释放文件以上传（可多选）</p>
       </div>
     </div>
 
@@ -134,11 +166,21 @@
       :is-destructive="true"
       @confirm="executeDelete"
     />
+
+    <ConfirmModal
+      v-model="showBatchDeleteModal"
+      title="批量删除"
+      :message="`确定删除已选中的 ${batchDeleteCount} 个文件吗？此操作不可撤销。`"
+      confirm-text="确定删除"
+      cancel-text="取消"
+      :is-destructive="true"
+      @confirm="executeBatchDelete"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { documentApi } from '@/api'
 import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
@@ -157,9 +199,64 @@ const { documents, loadDocuments, currentPage, pageSize, total, totalPages, setP
 
 const uploadProgress = ref(0)
 const isUploading = ref(false)
+
+/** 与 input accept 一致；超出部分会提示并截断 */
+const maxBatchUpload = 50
+const uploadAllowedExt = new Set(['.pdf', '.doc', '.docx', '.txt', '.md'])
+
+function fileExtension(name: string): string {
+  const i = name.lastIndexOf('.')
+  return i >= 0 ? name.slice(i).toLowerCase() : ''
+}
+
+function filterUploadableFiles(files: File[]): File[] {
+  return files.filter((f) => uploadAllowedExt.has(fileExtension(f.name)))
+}
 const isDragging = ref(false)
 const showDeleteDocModal = ref(false)
 const targetDeleteDoc = ref<Document | null>(null)
+const selectedIds = ref<number[]>([])
+const showBatchDeleteModal = ref(false)
+const batchDeleteCount = ref(0)
+
+const selectedCount = computed(() => selectedIds.value.length)
+const allOnPageSelected = computed(() => {
+  const pageIds = documents.value.map((d) => d.id)
+  return pageIds.length > 0 && pageIds.every((id) => selectedIds.value.includes(id))
+})
+
+function isSelected(id: number) {
+  return selectedIds.value.includes(id)
+}
+
+function toggleSelect(id: number) {
+  const next = [...selectedIds.value]
+  const i = next.indexOf(id)
+  if (i >= 0) next.splice(i, 1)
+  else next.push(id)
+  selectedIds.value = next
+}
+
+function toggleSelectAllOnPage() {
+  const pageIds = documents.value.map((d) => d.id)
+  if (pageIds.length === 0) return
+  if (allOnPageSelected.value) {
+    const pageSet = new Set(pageIds)
+    selectedIds.value = selectedIds.value.filter((id) => !pageSet.has(id))
+  } else {
+    selectedIds.value = [...new Set([...selectedIds.value, ...pageIds])]
+  }
+}
+
+function clearSelection() {
+  selectedIds.value = []
+}
+
+function confirmBatchDelete() {
+  if (selectedIds.value.length === 0) return
+  batchDeleteCount.value = selectedIds.value.length
+  showBatchDeleteModal.value = true
+}
 const fileInputRef = ref<HTMLInputElement>()
 const expandedDocIds = ref<Record<number, boolean>>({})
 let globalDragCounter = 0
@@ -203,37 +300,71 @@ function triggerUpload() {
   fileInputRef.value?.click()
 }
 
-async function handleFileUpload(file: File) {
+async function handleFilesUpload(fileArray: File[]) {
+  const raw = [...fileArray]
+  if (raw.length === 0) return
+
+  const valid = filterUploadableFiles(raw)
+  if (raw.length > valid.length) {
+    toastStore.warning(
+      `已跳过 ${raw.length - valid.length} 个不支持的文件（仅支持 PDF、DOC、DOCX、TXT、MD）`
+    )
+  }
+  if (valid.length === 0) {
+    toastStore.error('没有可上传的文件')
+    return
+  }
+
+  let queue = valid
+  if (valid.length > maxBatchUpload) {
+    toastStore.warning(`单次最多上传 ${maxBatchUpload} 个，已选取前 ${maxBatchUpload} 个`)
+    queue = valid.slice(0, maxBatchUpload)
+  }
+
   isUploading.value = true
-  uploadProgress.value = 10
+  uploadProgress.value = 0
+  const userId = userStore.user?.id
+  let ok = 0
+  let fail = 0
+  let lastErr = ''
+
   try {
-    uploadProgress.value = 50
-    const userId = userStore.user?.id
-    await documentApi.upload(file, userId)
+    for (let i = 0; i < queue.length; i++) {
+      uploadProgress.value = Math.round((i / queue.length) * 100)
+      try {
+        await documentApi.upload(queue[i], userId)
+        ok++
+      } catch (error: any) {
+        fail++
+        const msg = error?.response?.data?.message
+        if (typeof msg === 'string' && msg) lastErr = msg
+      }
+      uploadProgress.value = Math.round(((i + 1) / queue.length) * 100)
+    }
+
     uploadProgress.value = 100
-    toastStore.success('文件上传成功')
+    if (fail === 0) {
+      toastStore.success(queue.length === 1 ? '文件上传成功' : `已成功上传 ${ok} 个文件`)
+    } else if (ok === 0) {
+      toastStore.error(lastErr || '全部上传失败')
+    } else {
+      toastStore.warning(
+        `成功 ${ok} 个，失败 ${fail} 个${lastErr ? `（末次错误：${lastErr}）` : ''}`
+      )
+    }
+    await loadDocuments()
+  } finally {
     setTimeout(() => {
       uploadProgress.value = 0
       isUploading.value = false
-    }, 1000)
-    await loadDocuments()
-  } catch (error: any) {
-    let errorMessage = '文件上传失败'
-    if (error?.response?.data?.message) {
-      errorMessage = error.response.data.message
-    } else if (typeof error === 'string') {
-      errorMessage = error
-    }
-    toastStore.error(errorMessage)
-    uploadProgress.value = 0
-    isUploading.value = false
+    }, queue.length === 1 ? 1000 : 600)
   }
 }
 
 function onFileSelected(e: Event) {
   const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) handleFileUpload(file)
+  const files = Array.from(input.files ?? [])
+  if (files.length) void handleFilesUpload(files)
   input.value = ''
 }
 
@@ -247,8 +378,8 @@ function onDragLeave() {
 
 function onDrop(e: DragEvent) {
   localDragCounter = 0
-  const file = e.dataTransfer?.files[0]
-  if (file) handleFileUpload(file)
+  const files = Array.from(e.dataTransfer?.files ?? [])
+  if (files.length) void handleFilesUpload(files)
 }
 
 function onGlobalDragOver() {
@@ -268,8 +399,8 @@ function onGlobalDragLeave() {
 function onGlobalDrop(e: DragEvent) {
   globalDragCounter = 0
   isDragging.value = false
-  const file = e.dataTransfer?.files[0]
-  if (file) handleFileUpload(file)
+  const files = Array.from(e.dataTransfer?.files ?? [])
+  if (files.length) void handleFilesUpload(files)
 }
 
 function getDisplayPages(): number[] {
@@ -297,15 +428,31 @@ function confirmDelete(doc: Document) {
 
 async function executeDelete() {
   if (!targetDeleteDoc.value) return
+  const removedId = targetDeleteDoc.value.id
   try {
     const userId = userStore.user?.id
-    await documentApi.delete(targetDeleteDoc.value.id, userId)
+    await documentApi.delete(removedId, userId)
     toastStore.success('文件已删除')
+    selectedIds.value = selectedIds.value.filter((id) => id !== removedId)
     await loadDocuments()
   } catch {
     toastStore.error('删除失败')
   } finally {
     targetDeleteDoc.value = null
+  }
+}
+
+async function executeBatchDelete() {
+  const ids = [...selectedIds.value]
+  if (ids.length === 0) return
+  try {
+    const userId = userStore.user?.id
+    await documentApi.deleteBatch(ids, userId)
+    toastStore.success(`已删除 ${ids.length} 个文件`)
+    clearSelection()
+    await loadDocuments()
+  } catch {
+    toastStore.error('批量删除失败')
   }
 }
 
@@ -364,6 +511,81 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
   gap: 16px;
   flex-shrink: 0;
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-md)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(1.15);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glass-sm);
+  flex-shrink: 0;
+}
+
+.bulk-hint {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bulk-text-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.bulk-text-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1f2937;
+}
+
+.bulk-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: #dc2626;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.bulk-delete-btn:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+}
+
+.bulk-delete-btn:active {
+  transform: scale(0.98);
 }
 
 .search-bar {
@@ -525,6 +747,23 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.doc-checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 4px;
+  margin: -4px 0 -4px -4px;
+}
+
+.doc-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--btn-primary-bg);
+  cursor: pointer;
+}
+
 .doc-card {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--blur-md)) saturate(1.15);
@@ -535,7 +774,7 @@ onBeforeUnmount(() => {
   padding: 14px 18px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   cursor: pointer;
   transition:
     transform var(--transition-fast),

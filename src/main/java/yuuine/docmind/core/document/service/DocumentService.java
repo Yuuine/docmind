@@ -19,6 +19,11 @@ public interface DocumentService {
 
     void deleteDocument(Long documentId, Long userId);
 
+    /**
+     * 批量删除文档（同一事务；任一 id 校验失败则整批回滚）
+     */
+    void deleteDocuments(List<Long> documentIds, Long userId);
+
     DocumentStats getDocumentStats(Long documentId, Long userId);
 
     List<DocumentChunkInfo> getDocumentChunks(Long documentId, Long userId);

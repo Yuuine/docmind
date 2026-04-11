@@ -379,23 +379,35 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 return "";
             }
 
+            double[] scoresForTop1 = searchResults.stream()
+                    .mapToDouble(VectorStorePlugin.SearchResult::score)
+                    .toArray();
+            double rawTop1 = java.util.Arrays.stream(scoresForTop1).max().orElse(0.0);
+            if (ragRetrievalProperties.isRawTop1GateEnabled()
+                    && rawTop1 < ragRetrievalProperties.getMinRawTop1ForContext()) {
+                log.info("RAG置信门控: Top1原始分={} < 下限={}，不注入上下文",
+                        rawTop1, ragRetrievalProperties.getMinRawTop1ForContext());
+                return "";
+            }
+
             double[] confidenceResult = calculateConfidenceScore(searchResults);
             double confidenceScore = confidenceResult[0];
             double topKAvg = confidenceResult[1];
             double top1Score = confidenceResult[2];
             double stdDev = confidenceResult[3];
             double countScore = confidenceResult[4];
+            double normalizedTop1 = confidenceResult[5];
 
             boolean isConfident = confidenceScore > ragRetrievalProperties.getConfidenceThreshold();
 
-            log.info("RAG检索完成: 查询='{}', 结果数={}, 置信度评分={}, 阈值={}, 置信={}, "
-                            + "Top-K均值={}, Top1={}, 标准差={}, 数量得分={}",
+            log.info("RAG检索完成: 查询='{}', 结果数={}, 综合置信={}, 阈值={}, 置信={}, "
+                            + "Top1原始={}, Top1归一={}, Top-K均值={}, 标准差={}, 数量得分={}",
                     query, searchResults.size(), confidenceScore,
                     ragRetrievalProperties.getConfidenceThreshold(), isConfident,
-                    topKAvg, top1Score, stdDev, countScore);
+                    top1Score, normalizedTop1, topKAvg, stdDev, countScore);
 
             if (!isConfident) {
-                log.info("RAG检索结果置信度低于阈值，返回空上下文（友好提示由前端展示）");
+                log.info("RAG检索结果综合置信度低于阈值，返回空上下文");
                 return "";
             }
 
@@ -484,7 +496,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
             confidenceScore *= 0.5;
         }
 
-        return new double[]{confidenceScore, topKAvg, top1Score, stdDev, countScore};
+        return new double[]{confidenceScore, topKAvg, top1Score, stdDev, countScore, normalizedTop1};
     }
 
     private String buildRetrievedDocsJson(String context) {

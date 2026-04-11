@@ -18,7 +18,7 @@ server:
 
 logging:
   level:
-    yuuine.docmind: INFO
+    yuuine.docmind: DEBUG
     org.springframework.web: INFO
     org.flywaydb: INFO
 

@@ -58,11 +58,16 @@ export const documentApi = {
       params: { userId }
     })
   },
-  list: (params: { page?: number; pageSize?: number; filename?: string; status?: string }, userId?: number) =>
-    api.get<PageResponse<Document>>('/documents', { params: { ...params, userId } }),
+  list: (
+    params: { page?: number; pageSize?: number; filename?: string; status?: string },
+    userId?: number,
+    signal?: AbortSignal
+  ) => api.get<PageResponse<Document>>('/documents', { params: { ...params, userId }, signal }),
   getDetail: (id: number, userId?: number) => api.get<Document>(`/documents/${id}`, { params: { userId } }),
   download: (id: number, userId?: number) => api.get(`/documents/${id}/download`, { responseType: 'blob', params: { userId } }),
   delete: (id: number, userId?: number) => api.delete<{ success: boolean }>(`/documents/${id}`, { params: { userId } }),
+  deleteBatch: (ids: number[], userId?: number) =>
+    api.post<void>('/documents/batch-delete', { ids }, { params: { userId } }),
   getStats: (id: number, userId?: number) =>
     api.get<DocumentStats>(`/documents/${id}/stats`, { params: { userId } }),
   getChunks: (id: number, userId?: number) =>
