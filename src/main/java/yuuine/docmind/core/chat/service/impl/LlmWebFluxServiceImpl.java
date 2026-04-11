@@ -30,14 +30,28 @@ public class LlmWebFluxServiceImpl implements LlmService {
         Map<String, Object> requestBody = ModelConfigFactory.buildChatRequestBody(model, messages, true);
         String apiUrl = model.getBaseUrl().replaceAll("/$", "") + "/chat/completions";
 
-        // TODO: 测试用
         try {
-            String requestBodyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBody);
-            log.info("发送LLM请求, model={}, apiUrl={}", model.getModelName(), apiUrl);
-            log.info("完整请求体 JSON:\n{}", requestBodyJson);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> msgList = (List<Map<String, Object>>) requestBody.get("messages");
+            int msgCount = msgList != null ? msgList.size() : 0;
+            int approxChars = 0;
+            if (msgList != null) {
+                for (Map<String, Object> m : msgList) {
+                    Object c = m.get("content");
+                    if (c instanceof String s) {
+                        approxChars += s.length();
+                    }
+                }
+            }
+            log.info("发送LLM请求, model={}, apiUrl={}, messages={}, approxContentChars={}",
+                    model.getModelName(), apiUrl, msgCount, approxChars);
+            if (log.isDebugEnabled()) {
+                String requestBodyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestBody);
+                log.debug("LLM 完整请求体 JSON:\n{}", requestBodyJson);
+            }
         } catch (Exception e) {
-            log.warn("格式化请求体失败, 使用默认日志输出: {}", e.getMessage());
-            log.info("发送LLM请求, model={}, apiUrl={}, requestBody={}", model.getModelName(), apiUrl, requestBody);
+            log.warn("记录 LLM 请求摘要失败: {}", e.getMessage());
+            log.info("发送LLM请求, model={}, apiUrl={}", model.getModelName(), apiUrl);
         }
 
         WebClient webClient = createWebClient();

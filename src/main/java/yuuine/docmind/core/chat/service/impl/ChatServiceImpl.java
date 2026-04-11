@@ -190,12 +190,16 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         // PromptAssembler 会正确处理消息截断
         List<ChatMessage> historyMessages = new ArrayList<>(chatMessages);
 
-        String context = retrieveContext(userId, request.getContent());
+        boolean ragOn = !Boolean.FALSE.equals(request.getRagEnabled());
+        String systemPrompt = ragOn
+                ? ragPromptProperties.getSystem()
+                : ragPromptProperties.getSystemWithoutRag();
+        String context = ragOn ? retrieveContext(userId, request.getContent()) : "";
         final String finalContext = context;
 
         // 使用 PromptAssembler 构建消息列表
         List<Map<String, String>> assembledMessages = promptAssembler.assemble(
-            ragPromptProperties.getSystem(),
+            systemPrompt,
             historyMessages,
             context,
             request.getContent(),
@@ -350,6 +354,28 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
 
             if (searchResults == null || searchResults.isEmpty()) {
                 log.info("RAG检索: 未找到任何相关文档");
+                return "";
+            }
+
+            int minLen = ragRetrievalProperties.getMinChunkContentLength();
+            if (minLen > 0) {
+                int before = searchResults.size();
+                searchResults = searchResults.stream()
+                        .filter(r -> r.content() != null && r.content().length() >= minLen)
+                        .toList();
+                log.debug("RAG 按最短 chunk 过滤: {} -> {}", before, searchResults.size());
+            }
+            Double minScore = ragRetrievalProperties.getMinHitScore();
+            if (minScore != null) {
+                int before = searchResults.size();
+                searchResults = searchResults.stream()
+                        .filter(r -> r.score() >= minScore)
+                        .toList();
+                log.debug("RAG 按 score 下限过滤: {} -> {} (min={})", before, searchResults.size(), minScore);
+            }
+
+            if (searchResults.isEmpty()) {
+                log.info("RAG检索: 过滤后无可用片段");
                 return "";
             }
 

@@ -61,10 +61,12 @@ public class ChatController {
     @GetMapping(value = "/sessions/{id}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> sendMessageStream(@PathVariable Long id,
                                                         @RequestParam String content,
-                                                        @RequestParam Long userId) {
+                                                        @RequestParam Long userId,
+                                                        @RequestParam(required = false) Boolean ragEnabled) {
         ChatMessageRequest request = new ChatMessageRequest();
         request.setSessionId(id);
         request.setContent(content);
+        request.setRagEnabled(ragEnabled);
         return chatService.sendMessageStream(request, userId);
     }
 

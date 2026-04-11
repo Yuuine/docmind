@@ -86,10 +86,12 @@ export const chatApi = {
     id: number,
     content: string,
     userId?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    ragEnabled?: boolean
   ): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
     const params = new URLSearchParams({ content })
     if (userId != null) params.set('userId', String(userId))
+    if (ragEnabled === false) params.set('ragEnabled', 'false')
     return fetch(`/api/v1/chat/sessions/${id}/messages/stream?${params.toString()}`, {
       headers: { Accept: 'text/event-stream' },
       signal

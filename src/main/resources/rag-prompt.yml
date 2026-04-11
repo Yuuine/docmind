@@ -27,6 +27,13 @@ rag:
       当前问题：
       {query}
 
+    # 请求参数 ragEnabled=false 时使用（不检索、不注入参考资料），避免与「仅依据资料」冲突
+    system-without-rag: |
+      你是「潇潇」，友善、简洁的助手。
+      当前对话未挂载文档知识库，请基于通用知识回答；不确定时请说明。勿假装已阅读用户上传的文档。
+    # 历史中每条 assistant 的最大字符数（0=不截断），减轻长代码/JSON 占满上下文
+    max-assistant-content-chars: 3500
+
     # HistoryMessageBuilder*
     history:
       enabled: true
@@ -76,3 +83,8 @@ rag:
     # ChromaDB 分数范围（用于归一化）
     score-range-min: -30.0
     score-range-max: 0.0
+
+    # 丢弃过短 chunk（字符数），减少分块/解析噪声；0 表示关闭
+    min-chunk-content-length: 20
+    # 可选：向量 score 下限（越高越相似），不配置或注释掉表示不按 score 过滤
+    # min-hit-score: 0.15

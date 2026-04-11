@@ -49,11 +49,16 @@ public class PromptAssemblerImpl implements PromptAssembler {
                     truncatedHistory = new ArrayList<>(truncatedHistory.subList(0, lastIdx));
                 }
             }
+            int maxAsst = ragPromptProperties.getMaxAssistantContentChars();
             for (ChatMessage msg : truncatedHistory) {
                 if (msg.getRole() == null) continue;
                 Map<String, String> m = new HashMap<>(2);
                 m.put("role", msg.getRole().name().toLowerCase());
-                m.put("content", msg.getContent() != null ? msg.getContent() : "");
+                String text = msg.getContent() != null ? msg.getContent() : "";
+                if (maxAsst > 0 && msg.getRole() == MessageRole.ASSISTANT && text.length() > maxAsst) {
+                    text = text.substring(0, maxAsst) + "\n...[历史 assistant 已截断，长度>" + maxAsst + "]";
+                }
+                m.put("content", text);
                 messages.add(m);
             }
         }

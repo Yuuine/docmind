@@ -36,4 +36,10 @@ public class RagRetrievalProperties {
     private double scoreRangeMin = -30.0;
 
     private double scoreRangeMax = 0.0;
+
+    /** 丢弃过短的 chunk（字符数），减少「构」等解析噪声进入上下文；0 表示不过滤 */
+    private int minChunkContentLength = 20;
+
+    /** 向量检索原始 score 下限（越高越相似，与插件返回的 score 一致）；null 表示不过滤 */
+    private Double minHitScore;
 }
