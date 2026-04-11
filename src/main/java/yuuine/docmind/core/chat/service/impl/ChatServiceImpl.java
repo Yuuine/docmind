@@ -211,7 +211,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         StringBuilder accumulatedContent = new StringBuilder();
 
         return llmService.streamChat(activeModel, llmMessages)
-            .doOnNext(chunk -> log.info("收到LlmChunk: content={}, done={}, error={}", 
+            .doOnNext(chunk -> log.debug("收到LlmChunk: content={}, done={}, error={}",
                 chunk.getContent(), chunk.isDone(), chunk.getError()))
             .map(chunk -> {
                 if (chunk.getError() != null) {
@@ -229,7 +229,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 if (chunk.isDone()) {
                     try {
                         String data = objectMapper.writeValueAsString(Map.of("done", true));
-                        log.info("发送SSE done: {}", data);
+                        log.debug("发送SSE done: {}", data);
                         return ServerSentEvent.<String>builder()
                             .data(data)
                             .build();
@@ -241,7 +241,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 accumulatedContent.append(chunk.getContent());
                 try {
                     String data = objectMapper.writeValueAsString(Map.of("content", chunk.getContent()));
-                    log.info("发送SSE content: {}", data);
+                    log.debug("发送SSE content: {}", data);
                     return ServerSentEvent.<String>builder()
                         .data(data)
                         .build();

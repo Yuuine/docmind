@@ -11,4 +11,5 @@ public class PythonVectorStoreProperties {
     private String url = "http://localhost:8001";
     private Duration connectTimeout = Duration.ofSeconds(10);
     private Duration readTimeout = Duration.ofSeconds(30);
+    private boolean hybridEnabled = true;
 }

@@ -4,12 +4,14 @@ ChromaDB 向量存储客户端模块
 """
 
 import logging
+import asyncio
 from typing import List, Dict, Any, Optional
 
 import chromadb
 from chromadb.utils import embedding_functions
 
 from config import config
+from bm25_index import bm25_index
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +119,9 @@ class ChromaClient:
                 metadatas=metadatas
             )
             logger.info("Successfully added %d chunks to ChromaDB", len(chunks))
+
+            bm25_index.add_chunks(chunks)
+            logger.info("BM25 index updated with %d chunks", len(chunks))
         except Exception as e:
             logger.error("Failed to add chunks to ChromaDB: %s", e)
             raise
@@ -158,6 +163,9 @@ class ChromaClient:
                 metadatas=metadatas
             )
             logger.info("Successfully upserted %d chunks to ChromaDB", len(chunks))
+
+            bm25_index.update_chunks(chunks)
+            logger.info("BM25 index updated with %d chunks", len(chunks))
         except Exception as e:
             logger.error("Failed to upsert chunks to ChromaDB: %s", e)
             raise
@@ -241,6 +249,130 @@ class ChromaClient:
             logger.error("ChromaDB search failed: %s", e)
             raise
 
+    def hybrid_search(
+        self,
+        query: Optional[str] = None,
+        query_embedding: Optional[List[float]] = None,
+        top_k: int = 10,
+        file_ids: Optional[List[str]] = None,
+        rrf_k: int = 60,
+        include_vector_score: bool = True,
+        include_bm25_score: bool = True
+    ) -> List[Dict[str, Any]]:
+        """混合检索：向量检索 + BM25 检索 + RRF 融合
+
+        Args:
+            query: 查询文本（可选）
+            query_embedding: 查询向量（可选）
+            top_k: 返回的最大结果数量
+            file_ids: 文件ID过滤列表（可选）
+            rrf_k: RRF 融合参数 k
+            include_vector_score: 是否在结果中包含向量分数
+            include_bm25_score: 是否在结果中包含 BM25 分数
+
+        Returns:
+            融合后的结果列表，包含 chunkId, fileId, content, score, vectorScore, bm25Score, chunkIndex
+        """
+        if query is None and query_embedding is None:
+            raise ValueError("Either query or query_embedding must be provided")
+
+        logger.info("Hybrid search: query=%s, top_k=%d, rrf_k=%d",
+                    query is not None, top_k, rrf_k)
+
+        vector_results = []
+        if query is not None or query_embedding is not None:
+            vector_results = self.search(
+                query=query,
+                query_embedding=query_embedding,
+                top_k=top_k,
+                file_ids=file_ids
+            )
+
+        bm25_results = bm25_index.search(query, top_k=top_k)
+
+        if file_ids is not None:
+            bm25_results = [r for r in bm25_results if r.get("fileId") in file_ids]
+
+        fused_results = self._rrf_fusion(
+            vector_results,
+            bm25_results,
+            rrf_k,
+            include_vector_score,
+            include_bm25_score
+        )
+
+        final_results = fused_results[:top_k]
+
+        logger.info("Hybrid search completed: %d results", len(final_results))
+        return final_results
+
+    def _rrf_fusion(
+        self,
+        vector_results: List[Dict[str, Any]],
+        bm25_results: List[Dict[str, Any]],
+        rrf_k: int = 60,
+        include_vector_score: bool = True,
+        include_bm25_score: bool = True
+    ) -> List[Dict[str, Any]]:
+        """RRF (Reciprocal Rank Fusion) 融合
+
+        RRF_score(d) = Σ 1/(k + rank(d))
+
+        Args:
+            vector_results: 向量检索结果
+            bm25_results: BM25 检索结果
+            rrf_k: RRF 融合参数 k
+            include_vector_score: 是否包含向量分数
+            include_bm25_score: 是否包含 BM25 分数
+
+        Returns:
+            融合后的结果列表
+        """
+        chunk_scores: Dict[str, Dict[str, Any]] = {}
+
+        for rank, result in enumerate(vector_results, 1):
+            chunk_id = result["chunkId"]
+            if chunk_id not in chunk_scores:
+                chunk_scores[chunk_id] = {
+                    "chunkId": chunk_id,
+                    "fileId": result.get("fileId", ""),
+                    "content": result.get("content", ""),
+                    "chunkIndex": result.get("chunkIndex", 0),
+                    "vectorScore": 0.0,
+                    "bm25Score": 0.0,
+                    "rrfScore": 0.0
+                }
+            chunk_scores[chunk_id]["vectorScore"] = result.get("score", 0.0)
+            chunk_scores[chunk_id]["rrfScore"] += 1.0 / (rrf_k + rank)
+
+        for rank, result in enumerate(bm25_results, 1):
+            chunk_id = result["chunkId"]
+            if chunk_id not in chunk_scores:
+                chunk_scores[chunk_id] = {
+                    "chunkId": chunk_id,
+                    "fileId": result.get("fileId", ""),
+                    "content": result.get("content", ""),
+                    "chunkIndex": result.get("chunkIndex", 0),
+                    "vectorScore": 0.0,
+                    "bm25Score": 0.0,
+                    "rrfScore": 0.0
+                }
+            chunk_scores[chunk_id]["bm25Score"] = result.get("score", 0.0)
+            chunk_scores[chunk_id]["rrfScore"] += 1.0 / (rrf_k + rank)
+
+        results = list(chunk_scores.values())
+        results.sort(key=lambda x: x["rrfScore"], reverse=True)
+
+        for result in results:
+            result["score"] = result.pop("rrfScore")
+
+            if not include_vector_score:
+                result.pop("vectorScore", None)
+            if not include_bm25_score:
+                result.pop("bm25Score", None)
+
+        return results
+
     def delete_by_file_id(self, file_id: str) -> None:
         """按文件ID删除所有关联的向量
 
@@ -278,6 +410,10 @@ class ChromaClient:
         try:
             self.client.delete_collection(name=self.collection_name)
             logger.info("ChromaDB collection %s deleted successfully", self.collection_name)
+
+            bm25_index.clear()
+            logger.info("BM25 index cleared")
+
             self._ensure_collection_exists()
         except Exception as e:
             logger.error("Failed to delete ChromaDB collection: %s", e)

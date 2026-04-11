@@ -18,7 +18,7 @@ server:
 
 logging:
   level:
-    yuuine.docmind: DEBUG
+    yuuine.docmind: INFO
     org.springframework.web: INFO
     org.flywaydb: INFO
 
@@ -58,3 +58,4 @@ docmind:
       url: http://localhost:8001
       connect-timeout: 10s
       read-timeout: 30s
+      hybrid-enabled: true

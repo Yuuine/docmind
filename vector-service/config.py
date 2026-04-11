@@ -85,5 +85,15 @@ class Config:
 
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
+    HYBRID_SEARCH_ENABLED: bool = os.getenv("HYBRID_SEARCH_ENABLED", "false").lower() == "true"
+
+    HYBRID_VECTOR_TOP_K: int = int(os.getenv("HYBRID_VECTOR_TOP_K", "10"))
+    HYBRID_BM25_TOP_K: int = int(os.getenv("HYBRID_BM25_TOP_K", "10"))
+    HYBRID_RRF_K: int = int(os.getenv("HYBRID_RRF_K", "60"))
+
+    BM25_K1: float = float(os.getenv("BM25_K1", "1.5"))
+    BM25_B: float = float(os.getenv("BM25_B", "0.75"))
+    BM25_TOKENIZE: str = os.getenv("BM25_TOKENIZE", "jieba")
+
 
 config = Config()

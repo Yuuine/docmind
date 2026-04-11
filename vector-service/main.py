@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from config import config
 from chroma import chroma_client
 from embedding import embedding_service
+from bm25_index import bm25_index
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +42,18 @@ class SearchRequest(BaseModel):
     queryEmbedding: Optional[List[float]] = None
     topK: int = 10
     fileIds: Optional[List[str]] = None
+    hybrid: bool = False
+
+
+class HybridSearchRequest(BaseModel):
+    """混合检索请求，支持向量检索 + BM25 检索 + RRF 融合"""
+
+    query: str
+    queryEmbedding: Optional[List[float]] = None
+    topK: int = 5
+    fileIds: Optional[List[str]] = None
+    includeVectorScore: bool = True
+    includeBm25Score: bool = True
 
 
 class DeleteRequest(BaseModel):
@@ -118,6 +131,23 @@ async def health_check():
             "error": str(e)
         }
         health_status["status"] = "degraded"
+
+    # 检查 BM25 索引状态
+    try:
+        bm25_stats = bm25_index.get_stats()
+        health_status["components"]["bm25"] = {
+            "status": "ready" if bm25_stats.get("is_loaded") else "not_loaded",
+            "corpus_size": bm25_stats.get("corpus_size", 0),
+            "k1": bm25_stats.get("bm25_k1"),
+            "b": bm25_stats.get("bm25_b"),
+            "tokenize_mode": bm25_stats.get("tokenize_mode")
+        }
+    except Exception as e:
+        logger.error("BM25 health check failed: %s", e)
+        health_status["components"]["bm25"] = {
+            "status": "error",
+            "error": str(e)
+        }
 
     logger.info("Health check requested, status: %s", health_status["status"])
     return health_status
@@ -202,15 +232,30 @@ async def add_vectors(request: AddChunksRequest):
 
 @app.post("/api/v1/vectors/search")
 async def search_vectors(request: SearchRequest):
-    """向量相似度搜索"""
+    """向量相似度搜索
+
+    当 hybrid=true 时，使用混合检索模式。
+    """
     try:
-        logger.info("Searching vectors, topK: %d", request.topK)
-        results = chroma_client.search(
-            query=request.query,
-            query_embedding=request.queryEmbedding,
-            top_k=request.topK,
-            file_ids=request.fileIds,
-        )
+        logger.info("Searching vectors, topK: %d, hybrid: %s", request.topK, request.hybrid)
+
+        if request.hybrid:
+            results = chroma_client.hybrid_search(
+                query=request.query,
+                query_embedding=request.queryEmbedding,
+                top_k=request.topK,
+                file_ids=request.fileIds,
+                rrf_k=config.HYBRID_RRF_K,
+                include_vector_score=True,
+                include_bm25_score=True
+            )
+        else:
+            results = chroma_client.search(
+                query=request.query,
+                query_embedding=request.queryEmbedding,
+                top_k=request.topK,
+                file_ids=request.fileIds,
+            )
         logger.info("Search completed, found %d results", len(results))
         return {"status": "success", "hits": results}
     except ValueError as e:
@@ -218,6 +263,34 @@ async def search_vectors(request: SearchRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("Failed to search vectors: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/vectors/hybrid-search")
+async def hybrid_search_vectors(request: HybridSearchRequest):
+    """混合检索：向量检索 + BM25 检索 + RRF 融合
+
+    使用 RRF (Reciprocal Rank Fusion) 算法融合向量检索和 BM25 检索结果。
+    """
+    try:
+        logger.info("Hybrid searching vectors, topK: %d, rrf_k: %d",
+                   request.topK, config.HYBRID_RRF_K)
+        results = chroma_client.hybrid_search(
+            query=request.query,
+            query_embedding=request.queryEmbedding,
+            top_k=request.topK,
+            file_ids=request.fileIds,
+            rrf_k=config.HYBRID_RRF_K,
+            include_vector_score=request.includeVectorScore,
+            include_bm25_score=request.includeBm25Score
+        )
+        logger.info("Hybrid search completed, found %d results", len(results))
+        return {"status": "success", "hits": results}
+    except ValueError as e:
+        logger.warning("Hybrid search parameter error: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Failed to hybrid search vectors: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -233,7 +306,7 @@ async def update_vectors(request: UpdateChunksRequest):
         chroma_client.update_chunks(chunks_dicts)
         return {"status": "success", "message": f"Updated {len(request.chunks)} chunks"}
     except ValueError as e:
-        logger.warning("Update vectors parameter error: %s", e)
+        logger.warning("Update parameter error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("Failed to update chunks: %s", e)

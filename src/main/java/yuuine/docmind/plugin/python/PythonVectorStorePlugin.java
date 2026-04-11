@@ -68,8 +68,8 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
 
     @Override
     public List<SearchResult> search(String query, float[] queryEmbedding, int topK, List<String> allowedFileIds) {
-        log.info("Python VectorStore 搜索: query={}, topK={}, fileIdFilterSize={}", query, topK,
-                allowedFileIds == null ? "none" : allowedFileIds.size());
+        log.info("Python VectorStore 搜索: query={}, topK={}, fileIdFilterSize={}, hybrid={}",
+                query, topK, allowedFileIds == null ? "none" : allowedFileIds.size(), properties.isHybridEnabled());
 
         if (allowedFileIds != null && allowedFileIds.isEmpty()) {
             return new ArrayList<>();
@@ -85,6 +85,7 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
         if (allowedFileIds != null) {
             request.put("fileIds", allowedFileIds);
         }
+        request.put("hybrid", properties.isHybridEnabled());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -115,7 +116,8 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
                 }
             }
 
-            log.info("Python VectorStore 搜索完成: 返回 {} 个结果", results.size());
+            log.info("Python VectorStore 搜索完成: 返回 {} 个结果 (hybrid={})",
+                    results.size(), properties.isHybridEnabled());
             return results;
         } catch (RestClientException e) {
             log.error("Python VectorStore 搜索失败", e);
