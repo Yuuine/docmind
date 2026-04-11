@@ -42,6 +42,7 @@ docmind:
       chunking-strategy: SENTENCE
       max-segment-size: 1000
       max-overlap-size: 200
+      min-chunk-content-length: 50
       hybrid:
         paragraph-threshold: 800
         sentence-threshold: 300

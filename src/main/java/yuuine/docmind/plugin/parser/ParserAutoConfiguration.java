@@ -4,11 +4,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import yuuine.docmind.common.plugin.ParserPlugin;
+import yuuine.docmind.core.document.config.DocumentParserProperties;
 
 import java.util.List;
 
 @Configuration
 public class ParserAutoConfiguration {
+
+    private final DocumentParserProperties documentParserProperties;
+
+    public ParserAutoConfiguration(DocumentParserProperties documentParserProperties) {
+        this.documentParserProperties = documentParserProperties;
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -37,7 +44,7 @@ public class ParserAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public MarkdownParserPlugin markdownParserPlugin() {
-        return new MarkdownParserPlugin();
+        return new MarkdownParserPlugin(documentParserProperties.getMinChunkContentLength());
     }
 
     @Bean

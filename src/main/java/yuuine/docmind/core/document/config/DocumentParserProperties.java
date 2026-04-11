@@ -14,6 +14,8 @@ public class DocumentParserProperties {
 
     private int maxOverlapSize = 200;
 
+    private int minChunkContentLength = 50;
+
     private HybridConfig hybrid = new HybridConfig();
 
     private RegexConfig regex = new RegexConfig();

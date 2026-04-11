@@ -53,8 +53,8 @@ public class RagRetrievalProperties {
      */
     private double minRawTop1ForContext = 0.08;
 
-    /** 丢弃过短的 chunk（字符数），减少「构」等解析噪声进入上下文；0 表示不过滤 */
-    private int minChunkContentLength = 20;
+    /** 检索阶段丢弃过短的 chunk（字符数），减少解析噪声进入上下文；0 表示不过滤 */
+    private int minChunkContentLength = 50;
 
     /** 向量检索原始 score 下限（越高越相似，与插件返回的 score 一致）；null 表示不过滤 */
     private Double minHitScore;

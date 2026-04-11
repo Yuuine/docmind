@@ -67,10 +67,19 @@ import java.util.List;
 @Slf4j
 public class MarkdownParserPlugin implements ParserPlugin {
 
-    /** CommonMark 解析器实例，已启用 GFM Tables 扩展，线程安全可复用 */
     private final Parser parser = Parser.builder()
             .extensions(List.of(TablesExtension.create()))
             .build();
+
+    private final int minChunkContentLength;
+
+    public MarkdownParserPlugin() {
+        this.minChunkContentLength = 50;
+    }
+
+    public MarkdownParserPlugin(int minChunkContentLength) {
+        this.minChunkContentLength = minChunkContentLength;
+    }
 
     /**
      * 返回解析器名称标识。
@@ -146,15 +155,35 @@ public class MarkdownParserPlugin implements ParserPlugin {
             if (sections != null && !sections.isEmpty()) {
                 log.debug("使用结构化章节切片: 章节数={}", sections.size());
                 List<String> sectionChunks = flattenSections(sections);
-                return enforceChunkSizeLimit(sectionChunks, chunkSize, overlap);
+                List<String> result = enforceChunkSizeLimit(sectionChunks, chunkSize, overlap);
+                return filterShortChunks(result);
             }
 
             log.debug("回退到字符数切片");
-            return splitIntoChunks(document.getPlainText(), chunkSize, overlap);
+            List<String> chunks = splitIntoChunks(document.getPlainText(), chunkSize, overlap);
+            return filterShortChunks(chunks);
         } catch (IOException e) {
             log.error("Markdown解析失败: {}", filename, e);
             throw new RuntimeException("Markdown解析失败", e);
         }
+    }
+
+    private List<String> filterShortChunks(List<String> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return chunks;
+        }
+        List<String> filtered = new ArrayList<>();
+        for (String chunk : chunks) {
+            if (chunk.trim().length() >= minChunkContentLength) {
+                filtered.add(chunk);
+            } else {
+                log.debug("过滤过短chunk: length={}", chunk.length());
+            }
+        }
+        if (filtered.size() < chunks.size()) {
+            log.debug("过滤完成: 原始数量={}, 过滤后数量={}", chunks.size(), filtered.size());
+        }
+        return filtered;
     }
 
     /**
@@ -232,13 +261,9 @@ public class MarkdownParserPlugin implements ParserPlugin {
     private List<String> flattenSections(List<MarkdownSection> sections) {
         List<String> chunks = new ArrayList<>();
         for (MarkdownSection section : sections) {
-            if (section.hasContent()) {
-                StringBuilder content = new StringBuilder();
-                if (section.getTitle() != null && !section.getTitle().isBlank()) {
-                    content.append(section.getTitle()).append("\n\n");
-                }
-                content.append(section.getContent());
-                chunks.add(content.toString());
+            String sectionContent = section.getContent();
+            if (section.hasContent() && !isPureHeadingChunk(section.getTitle(), sectionContent)) {
+                chunks.add(sectionContent);
             }
 
             if (section.getSubSections() != null && !section.getSubSections().isEmpty()) {
@@ -246,6 +271,16 @@ public class MarkdownParserPlugin implements ParserPlugin {
             }
         }
         return chunks;
+    }
+
+    private boolean isPureHeadingChunk(String title, String content) {
+        if (title == null || content == null) {
+            return false;
+        }
+        String trimmedContent = content.trim();
+        String trimmedTitle = title.trim();
+        return trimmedContent.equals(trimmedTitle) ||
+               trimmedContent.equals(trimmedTitle + "\n\n" + trimmedTitle);
     }
 
     /**

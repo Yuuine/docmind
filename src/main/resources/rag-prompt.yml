@@ -86,7 +86,8 @@ rag:
     score-range-min: 0.0
     score-range-max: 1.0
 
-    # 丢弃过短 chunk（字符数），减少分块/解析噪声；0 表示关闭
-    min-chunk-content-length: 20
     # 可选：向量 score 下限（越高越相似），不配置或注释掉表示不按 score 过滤
     # min-hit-score: 0.15
+
+    # 检索阶段丢弃过短的 chunk（字符数），避免解析噪声进入上下文；0 表示不过滤
+    min-chunk-content-length: 50
