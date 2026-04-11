@@ -24,6 +24,11 @@ public interface DocumentService {
      */
     void deleteDocuments(List<Long> documentIds, Long userId);
 
+    /**
+     * 失败文档重新走解析与索引（仅 {@code ERROR} 状态；异步执行解析）
+     */
+    void reprocessDocument(Long documentId, Long userId);
+
     DocumentStats getDocumentStats(Long documentId, Long userId);
 
     List<DocumentChunkInfo> getDocumentChunks(Long documentId, Long userId);

@@ -61,6 +61,13 @@ public class DocumentController {
         return Result.success(documentService.getDocument(id, userId));
     }
 
+    @Audited(action = AuditAction.DOCUMENT_REPROCESS, resourceType = "Document", resourceIdFromPath = "id", describe = "重新处理文档")
+    @PostMapping("/{id}/reprocess")
+    public Result<Void> reprocess(@PathVariable Long id, @RequestParam Long userId) {
+        documentService.reprocessDocument(id, userId);
+        return Result.success();
+    }
+
     @Audited(action = AuditAction.DOCUMENT_DELETE, resourceType = "Document", resourceIdFromPath = "id", describe = "删除文档")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id, @RequestParam Long userId) {

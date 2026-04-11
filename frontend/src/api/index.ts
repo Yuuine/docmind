@@ -68,6 +68,8 @@ export const documentApi = {
   delete: (id: number, userId?: number) => api.delete<{ success: boolean }>(`/documents/${id}`, { params: { userId } }),
   deleteBatch: (ids: number[], userId?: number) =>
     api.post<void>('/documents/batch-delete', { ids }, { params: { userId } }),
+  reprocess: (id: number, userId?: number) =>
+    api.post<void>(`/documents/${id}/reprocess`, undefined, { params: { userId } }),
   getStats: (id: number, userId?: number) =>
     api.get<DocumentStats>(`/documents/${id}/stats`, { params: { userId } }),
   getChunks: (id: number, userId?: number) =>

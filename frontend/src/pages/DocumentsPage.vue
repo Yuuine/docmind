@@ -102,6 +102,15 @@
                 <Icon name="download" :size="16" />
               </button>
               <button
+                v-if="doc.status === 'ERROR'"
+                class="reprocess-row-btn"
+                :disabled="reprocessRowId === doc.id"
+                @click.stop="handleReprocessRow(doc)"
+                title="重新处理"
+              >
+                <Icon name="refresh" :size="16" />
+              </button>
+              <button
                 class="delete-btn"
                 @click.stop="confirmDelete(doc)"
                 title="删除"
@@ -111,7 +120,11 @@
             </div>
           </div>
           <transition name="fade-slide">
-            <DocumentDetailPanel v-if="isExpanded(doc.id)" :document="doc" />
+            <DocumentDetailPanel
+              v-if="isExpanded(doc.id)"
+              :document="doc"
+              @reprocessed="loadDocuments"
+            />
           </transition>
         </div>
       </div>
@@ -218,6 +231,7 @@ const targetDeleteDoc = ref<Document | null>(null)
 const selectedIds = ref<number[]>([])
 const showBatchDeleteModal = ref(false)
 const batchDeleteCount = ref(0)
+const reprocessRowId = ref<number | null>(null)
 
 const selectedCount = computed(() => selectedIds.value.length)
 const allOnPageSelected = computed(() => {
@@ -471,6 +485,26 @@ async function handleDownload(doc: Document) {
     toastStore.success('文件下载成功')
   } catch {
     toastStore.error('文件下载失败')
+  }
+}
+
+async function handleReprocessRow(doc: Document) {
+  if (doc.status !== 'ERROR') return
+  const userId = userStore.user?.id
+  if (!userId) return
+  reprocessRowId.value = doc.id
+  try {
+    await documentApi.reprocess(doc.id, userId)
+    toastStore.success('已提交重新处理')
+    await loadDocuments()
+  } catch (e: unknown) {
+    const msg =
+      typeof e === 'object' && e !== null && 'response' in e
+        ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined
+    toastStore.error(typeof msg === 'string' && msg ? msg : '重新处理失败')
+  } finally {
+    reprocessRowId.value = null
   }
 }
 
@@ -899,6 +933,30 @@ onBeforeUnmount(() => {
 .download-btn:hover {
   color: #2563eb;
   background: #dbeafe;
+}
+
+.reprocess-row-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reprocess-row-btn:hover:not(:disabled) {
+  color: #059669;
+  background: #d1fae5;
+}
+
+.reprocess-row-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .delete-btn:hover {

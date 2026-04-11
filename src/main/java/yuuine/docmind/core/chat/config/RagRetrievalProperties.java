@@ -58,4 +58,22 @@ public class RagRetrievalProperties {
 
     /** 向量检索原始 score 下限（越高越相似，与插件返回的 score 一致）；null 表示不过滤 */
     private Double minHitScore;
+
+    /** 一致性检测开关（利用向量+BM25 结果一致性判断置信度） */
+    private boolean consistencyEnabled = false;
+
+    /** Jaccard 相似度权重 */
+    private double jaccardWeight = 0.5;
+
+    /** 排名重叠度权重 */
+    private double rankOverlapWeight = 0.5;
+
+    /** Jaccard 阈值（低于此值认为不一致） */
+    private double jaccardThreshold = 0.1;
+
+    /** 排名重叠阈值 */
+    private double rankOverlapThreshold = 0.3;
+
+    /** 一致性置信度阈值 */
+    private double consistencyThreshold = 0.35;
 }

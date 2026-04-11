@@ -5,6 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
@@ -42,6 +45,7 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
     private final DocumentParsingService documentParsingService;
     private final DocumentUploadProperties uploadProperties;
     private final VectorStorePlugin vectorStorePlugin;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public DocumentResponse uploadDocument(DocumentUploadRequest request, Long userId) {
@@ -185,11 +189,66 @@ public class DocumentServiceImpl implements yuuine.docmind.core.document.service
         List<Long> distinct = documentIds.stream()
                 .filter(Objects::nonNull)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
         for (Long id : distinct) {
             performDeleteDocument(id, userId);
         }
         log.info("批量删除文档完成: userId={}, count={}", userId, distinct.size());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reprocessDocument(Long documentId, Long userId) {
+        Document document = documentRepository.selectById(documentId);
+        if (document == null) {
+            throw new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND);
+        }
+        if (!document.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权处理此文档");
+        }
+        if (document.getStatus() != DocumentStatus.ERROR) {
+            throw new BusinessException(ErrorCode.DOCUMENT_INVALID_STATE, "仅处理失败的文档可重新处理");
+        }
+
+        LambdaQueryWrapper<DocumentChunk> chunkQueryWrapper = new LambdaQueryWrapper<>();
+        chunkQueryWrapper.eq(DocumentChunk::getDocumentId, documentId);
+        documentChunkRepository.delete(chunkQueryWrapper);
+
+        Document patch = new Document();
+        patch.setId(documentId);
+        patch.setStatus(DocumentStatus.UPLOADING);
+        patch.setErrorMessage(null);
+        documentRepository.updateById(patch);
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    vectorStorePlugin.deleteByFileId(String.valueOf(documentId));
+                } catch (Exception e) {
+                    log.error("重新处理：清理向量失败 documentId={}", documentId, e);
+                    markReprocessVectorCleanupFailed(documentId, e.getMessage());
+                    return;
+                }
+                documentParsingService.parseDocumentAsync(documentId);
+            }
+        });
+
+        log.info("已提交重新处理: documentId={}, userId={}", documentId, userId);
+    }
+
+    private void markReprocessVectorCleanupFailed(Long documentId, String cause) {
+        transactionTemplate.executeWithoutResult(status -> {
+            Document d = new Document();
+            d.setId(documentId);
+            d.setStatus(DocumentStatus.ERROR);
+            String msg = "[重新处理] 清理向量索引失败";
+            if (cause != null && !cause.isBlank()) {
+                msg = msg + "：" + cause;
+            }
+            d.setErrorMessage(msg);
+            documentRepository.updateById(d);
+        });
     }
 
     private void performDeleteDocument(Long documentId, Long userId) {

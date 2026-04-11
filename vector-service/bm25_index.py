@@ -251,6 +251,39 @@ class BM25Index:
             "tokenize_mode": self._tokenize_mode
         }
 
+    def delete_by_file_id(self, file_id: str) -> int:
+        """按文件ID从索引中移除所有关联chunks
+
+        Args:
+            file_id: 要删除的文件ID
+
+        Returns:
+            被删除的chunk数量
+        """
+        original_size = len(self.corpus)
+        self.corpus = [chunk for chunk in self.corpus if chunk.get("fileId") != file_id]
+
+        deleted_count = original_size - len(self.corpus)
+
+        if deleted_count > 0:
+            if self.corpus:
+                contents = [chunk.get("content", "") for chunk in self.corpus]
+                tokenized_contents = self._tokenize_corpus(contents)
+                self.index = BM25Okapi(tokenized_contents, k1=self._bm25_k1, b=self._bm25_b)
+                self._rebuild_mappings()
+                logger.info("BM25 index rebuilt after deleting %d chunks for fileId=%s, remaining=%d",
+                            deleted_count, file_id, len(self.corpus))
+            else:
+                self.index = None
+                self.chunk_id_to_index = {}
+                self.index_to_chunk_id = {}
+                self.is_loaded = False
+                logger.info("BM25 index cleared (last file removed): fileId=%s", file_id)
+
+            self.save()
+
+        return deleted_count
+
     def clear(self) -> None:
         """清空索引"""
         self.index = None

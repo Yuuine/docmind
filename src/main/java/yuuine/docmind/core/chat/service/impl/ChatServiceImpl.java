@@ -27,11 +27,14 @@ import yuuine.docmind.core.chat.config.RagRetrievalProperties;
 import yuuine.docmind.core.chat.service.PromptAssembler;
 import yuuine.docmind.core.document.model.Document;
 import yuuine.docmind.core.document.repository.DocumentRepository;
+import yuuine.docmind.plugin.python.PythonVectorStorePlugin;
 
 import java.util.ArrayList;
 import java.util.DoubleSummaryStatistics;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 @Slf4j
@@ -216,13 +219,13 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         StringBuilder accumulatedContent = new StringBuilder();
 
         return llmService.streamChat(activeModel, llmMessages)
-            .doOnNext(chunk -> log.debug("收到LlmChunk: content={}, done={}, error={}",
+            .doOnNext(chunk -> log.trace("收到LlmChunk: content={}, done={}, error={}",
                 chunk.getContent(), chunk.isDone(), chunk.getError()))
             .map(chunk -> {
                 if (chunk.getError() != null) {
                     try {
                         String data = objectMapper.writeValueAsString(Map.of("error", chunk.getError()));
-                        log.info("发送SSE error: {}", data);
+                        log.trace("发送SSE error: {}", data);
                         return ServerSentEvent.<String>builder()
                             .data(data)
                             .build();
@@ -234,7 +237,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 if (chunk.isDone()) {
                     try {
                         String data = objectMapper.writeValueAsString(Map.of("done", true));
-                        log.debug("发送SSE done: {}", data);
+                        log.trace("发送SSE done: {}", data);
                         return ServerSentEvent.<String>builder()
                             .data(data)
                             .build();
@@ -246,7 +249,7 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
                 accumulatedContent.append(chunk.getContent());
                 try {
                     String data = objectMapper.writeValueAsString(Map.of("content", chunk.getContent()));
-                    log.debug("发送SSE content: {}", data);
+                    log.trace("发送SSE content: {}", data);
                     return ServerSentEvent.<String>builder()
                         .data(data)
                         .build();
@@ -400,14 +403,38 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
 
             boolean isConfident = confidenceScore > ragRetrievalProperties.getConfidenceThreshold();
 
-            log.info("RAG检索完成: 查询='{}', 结果数={}, 综合置信={}, 阈值={}, 置信={}, "
-                            + "Top1原始={}, Top1归一={}, Top-K均值={}, 标准差={}, 数量得分={}",
-                    query, searchResults.size(), confidenceScore,
-                    ragRetrievalProperties.getConfidenceThreshold(), isConfident,
-                    top1Score, normalizedTop1, topKAvg, stdDev, countScore);
+            double consistencyScore;
+            double jaccardSimilarity;
+            double rankOverlapValue;
+
+            if (ragRetrievalProperties.isConsistencyEnabled()) {
+                double[] consistencyResult = calculateConsistencyScore(vectorStorePlugin, searchResults);
+                consistencyScore = consistencyResult[0];
+                jaccardSimilarity = consistencyResult[1];
+                rankOverlapValue = consistencyResult[2];
+
+                if (isConfident) {
+                    log.info("RAG置信度: 原始置信={} 已达标, 一致性={}, Jaccard={}, RankOverlap={}, 保持原判定",
+                            confidenceScore, consistencyScore, jaccardSimilarity, rankOverlapValue);
+                } else {
+                    double boostedConfidence = confidenceScore + 0.15 * consistencyScore;
+                    isConfident = boostedConfidence > ragRetrievalProperties.getConsistencyThreshold();
+                    log.info("RAG置信度: 原始置信={} 不足, 加权后={}, 阈值={}, 置信={}, "
+                                    + "Top1原始={}, Top-K均值={}, 标准差={}, Jaccard={}, RankOverlap={}",
+                            confidenceScore, boostedConfidence,
+                            ragRetrievalProperties.getConsistencyThreshold(), isConfident,
+                            top1Score, topKAvg, stdDev, jaccardSimilarity, rankOverlapValue);
+                }
+            } else {
+                log.info("RAG检索完成: 查询='{}', 结果数={}, 置信度={}, 阈值={}, 置信={}, "
+                                + "Top1原始={}, Top1归一={}, Top-K均值={}, 标准差={}, 数量得分={}",
+                        query, searchResults.size(), confidenceScore,
+                        ragRetrievalProperties.getConfidenceThreshold(), isConfident,
+                        top1Score, normalizedTop1, topKAvg, stdDev, countScore);
+            }
 
             if (!isConfident) {
-                log.info("RAG检索结果综合置信度低于阈值，返回空上下文");
+                log.info("RAG检索结果置信度低于阈值，返回空上下文");
                 return "";
             }
 
@@ -497,6 +524,89 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         }
 
         return new double[]{confidenceScore, topKAvg, top1Score, stdDev, countScore, normalizedTop1};
+    }
+
+    private double[] calculateConsistencyScore(VectorStorePlugin vectorStorePlugin,
+            List<VectorStorePlugin.SearchResult> searchResults) {
+        if (!(vectorStorePlugin instanceof PythonVectorStorePlugin pythonPlugin)) {
+            log.warn("一致性检测仅支持 PythonVectorStorePlugin");
+            return new double[]{1.0, 1.0, 1.0};
+        }
+
+        List<String> sources = pythonPlugin.getLastHybridSources();
+        if (sources.isEmpty()) {
+            log.warn("一致性检测: 无来源信息，跳过");
+            return new double[]{0.0, 0.0, 0.0};
+        }
+
+        List<String> vectorResults = new ArrayList<>();
+        List<String> bm25Results = new ArrayList<>();
+
+        for (int i = 0; i < searchResults.size() && i < sources.size(); i++) {
+            String chunkId = searchResults.get(i).chunkId();
+            String source = sources.get(i);
+            if ("vector".equals(source) || "both".equals(source)) {
+                if (!vectorResults.contains(chunkId)) {
+                    vectorResults.add(chunkId);
+                }
+            }
+            if ("bm25".equals(source) || "both".equals(source)) {
+                if (!bm25Results.contains(chunkId)) {
+                    bm25Results.add(chunkId);
+                }
+            }
+        }
+
+        Set<String> intersection = new HashSet<>(vectorResults);
+        intersection.retainAll(bm25Results);
+
+        Set<String> union = new HashSet<>(vectorResults);
+        union.addAll(bm25Results);
+
+        double jaccard = union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
+
+        double rankOverlap = calculateRankOverlap(vectorResults, bm25Results);
+
+        double consistency = ragRetrievalProperties.getJaccardWeight() * jaccard +
+                ragRetrievalProperties.getRankOverlapWeight() * rankOverlap;
+
+        log.debug("一致性检测详情: 向量结果={}, BM25结果={}, 交集={}, 并集={}, Jaccard={}, RankOverlap={}, 综合={}",
+                vectorResults.size(), bm25Results.size(), intersection.size(), union.size(), jaccard, rankOverlap, consistency);
+
+        return new double[]{consistency, jaccard, rankOverlap};
+    }
+
+    private double calculateRankOverlap(List<String> vectorResults, List<String> bm25Results) {
+        if (vectorResults.isEmpty() || bm25Results.isEmpty()) {
+            return 0.0;
+        }
+
+        List<String> intersection = new ArrayList<>(vectorResults);
+        intersection.retainAll(bm25Results);
+
+        if (intersection.isEmpty()) {
+            return 0.0;
+        }
+
+        double overlapScore = 0.0;
+        for (String chunkId : intersection) {
+            int vectorRank = findRank(vectorResults, chunkId);
+            int bm25Rank = findRank(bm25Results, chunkId);
+            if (vectorRank > 0 && bm25Rank > 0) {
+                overlapScore += 1.0 / (vectorRank + bm25Rank);
+            }
+        }
+
+        return Math.min(1.0, overlapScore * 2);
+    }
+
+    private int findRank(List<String> list, String chunkId) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).equals(chunkId)) {
+                return i + 1;
+            }
+        }
+        return Integer.MAX_VALUE;
     }
 
     private String buildRetrievedDocsJson(String context) {

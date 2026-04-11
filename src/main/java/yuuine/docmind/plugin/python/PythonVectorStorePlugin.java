@@ -18,6 +18,10 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
     @Getter
     private final ObjectMapper objectMapper;
 
+    private List<String> lastHybridSources;
+    private Map<String, Double> lastHybridVectorScores;
+    private Map<String, Double> lastHybridBm25Scores;
+
     public PythonVectorStorePlugin(
             PythonVectorStoreProperties properties,
             RestTemplate restTemplate,
@@ -78,7 +82,8 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
         Map<String, Object> request = new HashMap<>();
         if (queryEmbedding != null) {
             request.put("queryEmbedding", queryEmbedding);
-        } else {
+        }
+        if (query != null && !query.isBlank()) {
             request.put("query", query);
         }
         request.put("topK", topK);
@@ -86,6 +91,10 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
             request.put("fileIds", allowedFileIds);
         }
         request.put("hybrid", properties.isHybridEnabled());
+        if (properties.isHybridEnabled()) {
+            request.put("includeVectorScore", true);
+            request.put("includeBm25Score", true);
+        }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -99,19 +108,38 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
             );
 
             List<SearchResult> results = new ArrayList<>();
+            lastHybridSources = new ArrayList<>();
+            lastHybridVectorScores = new HashMap<>();
+            lastHybridBm25Scores = new HashMap<>();
+
             if (response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
                 List<Map<String, Object>> hits = (List<Map<String, Object>>) body.get("hits");
 
                 if (hits != null) {
                     for (Map<String, Object> hit : hits) {
+                        String chunkId = (String) hit.get("chunkId");
+                        String source = (String) hit.get("source");
+                        Double vectorScore = hit.get("vectorScore") != null ? ((Number) hit.get("vectorScore")).doubleValue() : null;
+                        Double bm25Score = hit.get("bm25Score") != null ? ((Number) hit.get("bm25Score")).doubleValue() : null;
+
                         results.add(new SearchResult(
-                                (String) hit.get("chunkId"),
+                                chunkId,
                                 (String) hit.get("fileId"),
                                 (String) hit.get("content"),
                                 ((Number) hit.get("score")).doubleValue(),
                                 ((Number) hit.get("chunkIndex")).intValue()
                         ));
+
+                        if (source != null) {
+                            lastHybridSources.add(source);
+                            if (vectorScore != null) {
+                                lastHybridVectorScores.put(chunkId, vectorScore);
+                            }
+                            if (bm25Score != null) {
+                                lastHybridBm25Scores.put(chunkId, bm25Score);
+                            }
+                        }
                     }
                 }
             }
@@ -123,6 +151,18 @@ public class PythonVectorStorePlugin implements VectorStorePlugin {
             log.error("Python VectorStore 搜索失败", e);
             throw e;
         }
+    }
+
+    public List<String> getLastHybridSources() {
+        return lastHybridSources != null ? lastHybridSources : new ArrayList<>();
+    }
+
+    public Map<String, Double> getLastHybridVectorScores() {
+        return lastHybridVectorScores != null ? lastHybridVectorScores : new HashMap<>();
+    }
+
+    public Map<String, Double> getLastHybridBm25Scores() {
+        return lastHybridBm25Scores != null ? lastHybridBm25Scores : new HashMap<>();
     }
 
     @Override

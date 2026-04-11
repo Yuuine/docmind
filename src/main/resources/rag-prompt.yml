@@ -55,13 +55,16 @@ rag:
 
     # ---------------------------------------------------------------------------
     # 置信门控：① Top1 原始分硬门槛 ② 综合分（归一化须在 score-range 与向量量纲一致）
-    # Python/Chroma：score≈1-distance，约在 [0,1]，故 score-range 用 0~1；勿再用 -30~0 以免弱相关被算成高分
+    # 当前使用 RRF (Reciprocal Rank Fusion) 融合算法，分数范围约为 [0, 0.033]
+    # 公式: RRF_score(d) = Σ 1/(k + rank(d))，其中 k=60
+    # 最大值 ≈ 2/(60+1) = 0.0328（向量+BM25 都排第1）
     # ---------------------------------------------------------------------------
-    # 综合置信度阈值（略低于旧 0.5，与 0~1 归一化后的尺度匹配）
-    confidence-threshold: 0.28
+    # 综合置信度阈值（归一化后，基于 score-range 归一化到 [0,1]）
+    confidence-threshold: 0.5
     # Top1 原始分硬门控（关闭则设 raw-top1-gate-enabled: false）
     raw-top1-gate-enabled: true
-    min-raw-top1-for-context: 0.08
+    # RRF 分数最大约 0.033，此处设置较低门槛允许大部分有效结果通过
+    min-raw-top1-for-context: 0.005
     # 是否在检索结果不相关时启用友好提示
     friendly-prompt-enabled: true
     # 友好提示语（当检索不相关时使用）
@@ -78,16 +81,33 @@ rag:
     stddev-weight: 0.2
     # 结果数量权重（数量充足时为1，不足时按比例降低）
     count-weight: 0.1
-    # 单文档最低分数要求（ChromaDB 分数，低于此值置信度打折）
-    min-top1-score: -25.0
+    # 单文档最低分数要求（RRF 分数，低于此值置信度打折）
+    min-top1-score: 0.005
     # 最少结果数量要求（低于此值数量得分打折）
     min-results: 2
-    # 与向量插件 score 量纲一致（当前 Python 为 0~1 相似度）
+    # 与 RRF 分数量纲一致（范围约为 [0, 0.033]，设置略大于最大值）
     score-range-min: 0.0
-    score-range-max: 1.0
+    score-range-max: 0.04
 
     # 可选：向量 score 下限（越高越相似），不配置或注释掉表示不按 score 过滤
     # min-hit-score: 0.15
 
     # 检索阶段丢弃过短的 chunk（字符数），避免解析噪声进入上下文；0 表示不过滤
     min-chunk-content-length: 50
+
+    # ---------------------------------------------------------------------------
+    # 一致性置信度检测：利用向量+BM25 混合检索结果的一致性判断置信度
+    # 当两种检索方法都返回相同/相似结果时，说明相关性确实高
+    # ---------------------------------------------------------------------------
+    # 一致性检测开关（需要同时启用 hybrid-enabled）
+    consistency-enabled: true
+    # Jaccard 相似度权重（交集/并集）
+    jaccard-weight: 0.5
+    # 排名重叠度权重
+    rank-overlap-weight: 0.5
+    # Jaccard 阈值（低于此值认为不一致）
+    jaccard-threshold: 0.1
+    # 排名重叠阈值
+    rank-overlap-threshold: 0.3
+    # 一致性置信度阈值
+    consistency-threshold: 0.35

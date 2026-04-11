@@ -34,6 +34,17 @@
           {{ document.errorMessage }}
         </div>
       </div>
+      <div v-if="document.status === 'ERROR'" class="reprocess-wrap">
+        <button
+          type="button"
+          class="reprocess-btn"
+          :disabled="reprocessLoading"
+          @click="handleReprocess"
+        >
+          <Icon name="refresh" :size="14" />
+          <span>{{ reprocessLoading ? '提交中…' : '重新处理' }}</span>
+        </button>
+      </div>
     </div>
 
     <div class="detail-section">
@@ -98,6 +109,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { documentApi } from '@/api'
+import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
 import { Icon } from '@/components/icons'
 import DocumentChunkModal from './DocumentChunkModal.vue'
@@ -108,7 +120,12 @@ const props = defineProps<{
   document: Document
 }>()
 
+const emit = defineEmits<{
+  reprocessed: []
+}>()
+
 const userStore = useUserStore()
+const toastStore = useToastStore()
 const userId = userStore.user?.id
 
 const stats = ref<DocumentStats | null>(null)
@@ -119,6 +136,7 @@ const showChunks = ref(false)
 const showError = ref(false)
 const showChunkModal = ref(false)
 const selectedChunkId = ref<number | null>(null)
+const reprocessLoading = ref(false)
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'
@@ -172,6 +190,24 @@ function toggleChunks() {
 function showChunkDetail(chunkId: number) {
   selectedChunkId.value = chunkId
   showChunkModal.value = true
+}
+
+async function handleReprocess() {
+  if (!userId) return
+  reprocessLoading.value = true
+  try {
+    await documentApi.reprocess(props.document.id, userId)
+    toastStore.success('已提交重新处理')
+    emit('reprocessed')
+  } catch (e: unknown) {
+    const msg =
+      typeof e === 'object' && e !== null && 'response' in e
+        ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined
+    toastStore.error(typeof msg === 'string' && msg ? msg : '重新处理失败')
+  } finally {
+    reprocessLoading.value = false
+  }
 }
 
 watch(() => props.document.id, () => {
@@ -284,6 +320,39 @@ watch(() => props.document.id, () => {
   font-size: 13px;
   color: #991b1b;
   line-height: 1.5;
+}
+
+.reprocess-wrap {
+  margin-top: 14px;
+}
+
+.reprocess-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-bg);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast),
+    opacity 0.2s ease;
+}
+
+.reprocess-btn:hover:not(:disabled) {
+  background: var(--btn-primary-bg-hover);
+  transform: translateY(-1px);
+}
+
+.reprocess-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .toggle-chunks-btn {

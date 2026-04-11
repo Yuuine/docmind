@@ -220,11 +220,11 @@ class ChromaClient:
             if where_filter is not None:
                 query_kwargs["where"] = where_filter
 
-            if query is not None:
-                query_kwargs["query_texts"] = [query]
-                query_results = self.collection.query(**query_kwargs)
-            elif query_embedding is not None:
+            if query_embedding is not None:
                 query_kwargs["query_embeddings"] = [query_embedding]
+                query_results = self.collection.query(**query_kwargs)
+            elif query is not None:
+                query_kwargs["query_texts"] = [query]
                 query_results = self.collection.query(**query_kwargs)
 
             if "ids" in query_results and query_results["ids"]:
@@ -288,7 +288,8 @@ class ChromaClient:
                 file_ids=file_ids
             )
 
-        bm25_results = bm25_index.search(query, top_k=top_k)
+        bm25_search_top_k = (top_k * 5) if file_ids is not None else top_k
+        bm25_results = bm25_index.search(query, top_k=bm25_search_top_k)
 
         if file_ids is not None:
             bm25_results = [r for r in bm25_results if r.get("fileId") in file_ids]
@@ -340,7 +341,8 @@ class ChromaClient:
                     "chunkIndex": result.get("chunkIndex", 0),
                     "vectorScore": 0.0,
                     "bm25Score": 0.0,
-                    "rrfScore": 0.0
+                    "rrfScore": 0.0,
+                    "source": "vector"
                 }
             chunk_scores[chunk_id]["vectorScore"] = result.get("score", 0.0)
             chunk_scores[chunk_id]["rrfScore"] += 1.0 / (rrf_k + rank)
@@ -355,8 +357,11 @@ class ChromaClient:
                     "chunkIndex": result.get("chunkIndex", 0),
                     "vectorScore": 0.0,
                     "bm25Score": 0.0,
-                    "rrfScore": 0.0
+                    "rrfScore": 0.0,
+                    "source": "bm25"
                 }
+            elif chunk_scores[chunk_id]["source"] == "vector":
+                chunk_scores[chunk_id]["source"] = "both"
             chunk_scores[chunk_id]["bm25Score"] = result.get("score", 0.0)
             chunk_scores[chunk_id]["rrfScore"] += 1.0 / (rrf_k + rank)
 
@@ -394,6 +399,10 @@ class ChromaClient:
                 where={"fileId": file_id}
             )
             logger.info("ChromaDB deletion completed: fileId=%s", file_id)
+
+            deleted_count = bm25_index.delete_by_file_id(file_id)
+            if deleted_count > 0:
+                logger.info("BM25 index deletion completed: fileId=%s, removed %d chunks", file_id, deleted_count)
         except Exception as e:
             logger.error("Failed to delete by fileId %s: %s", file_id, e)
             raise
