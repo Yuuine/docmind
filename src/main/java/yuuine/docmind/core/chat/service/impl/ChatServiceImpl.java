@@ -253,11 +253,12 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
             .doOnComplete(() -> {
                 if (!accumulatedContent.isEmpty()) {
                     try {
+                        String retrievedDocsJson = buildRetrievedDocsJson(finalContext);
                         ChatMessage assistantMessage = ChatMessage.builder()
                                 .sessionId(request.getSessionId())
                                 .role(MessageRole.ASSISTANT)
                                 .content(accumulatedContent.toString())
-                                .retrievedDocs(finalContext.isBlank() ? "[]" : finalContext)
+                                .retrievedDocs(retrievedDocsJson)
                                 .build();
                         chatMessageRepository.insert(assistantMessage);
                     } catch (Exception e) {
@@ -378,6 +379,30 @@ public class ChatServiceImpl implements yuuine.docmind.core.chat.service.ChatSer
         } catch (Exception e) {
             log.warn("RAG检索失败, 降级为无RAG模式, error={}", e.getMessage(), e);
             return "";
+        }
+    }
+
+    private String buildRetrievedDocsJson(String context) {
+        if (context == null || context.isBlank()) {
+            return "[]";
+        }
+        try {
+            String[] lines = context.split("\n");
+            List<Map<String, String>> docs = new java.util.ArrayList<>();
+            for (String line : lines) {
+                line = line.trim();
+                if (!line.isEmpty()) {
+                    docs.add(Map.of("content", line));
+                }
+            }
+            return objectMapper.writeValueAsString(docs);
+        } catch (Exception e) {
+            log.warn("构建retrieved_docs JSON失败, 使用原始文本, error={}", e.getMessage());
+            try {
+                return objectMapper.writeValueAsString(List.of(Map.of("content", context)));
+            } catch (Exception ex) {
+                return "[]";
+            }
         }
     }
 

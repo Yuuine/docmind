@@ -24,10 +24,12 @@ class EmbeddingService:
     Attributes:
         _model: SentenceTransformer 模型实例（懒加载）
         _dimension: 向量维度（模型加载后确定）
+        _device: 模型运行设备
     """
 
     _model: Optional[SentenceTransformer] = None
     _dimension: Optional[int] = None
+    _device: Optional[str] = None
 
     @classmethod
     def _load_model(cls) -> SentenceTransformer:
@@ -43,11 +45,26 @@ class EmbeddingService:
             Exception: 当模型加载失败时
         """
         if cls._model is None:
+            device = config.EMBEDDING_DEVICE_ACTUAL
+            cuda_requested = config.EMBEDDING_DEVICE.lower() == "cuda"
+            cuda_available = device == "cuda"
+
             logger.info("Loading embedding model: %s", config.EMBEDDING_MODEL_NAME)
+            logger.info("Device config: requested=%s, available=%s, actual=%s",
+                       config.EMBEDDING_DEVICE, device, device)
+
+            if cuda_requested and not cuda_available:
+                logger.warning("CUDA was requested but not available, using CPU instead")
+
             try:
-                cls._model = SentenceTransformer(config.EMBEDDING_MODEL_NAME)
+                cls._model = SentenceTransformer(
+                    config.EMBEDDING_MODEL_NAME,
+                    device=device
+                )
                 cls._dimension = cls._model.get_sentence_embedding_dimension()
-                logger.info("Model loaded successfully, dimension: %d", cls._dimension)
+                cls._device = device
+                logger.info("Model loaded successfully, dimension: %d, device: %s",
+                           cls._dimension, device)
             except Exception as e:
                 logger.error("Failed to load embedding model %s: %s",
                             config.EMBEDDING_MODEL_NAME, e)
@@ -133,6 +150,18 @@ class EmbeddingService:
         """
         return cls._model is not None
 
+    @classmethod
+    def get_device(cls) -> str:
+        """获取模型运行设备
 
-# 全局单例实例
+        如果模型尚未加载，会触发模型加载过程。
+
+        Returns:
+            str: 设备标识，"cpu" 或 "cuda"
+        """
+        if cls._device is None:
+            cls._load_model()
+        return cls._device
+
+
 embedding_service = EmbeddingService()

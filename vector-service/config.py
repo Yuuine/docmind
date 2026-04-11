@@ -13,6 +13,41 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _check_cuda_available() -> bool:
+    """检测 CUDA 是否可用"""
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
+
+
+def _get_device_from_config() -> str:
+    """根据配置获取实际运行设备
+
+    Returns:
+        str: 实际设备标识，"cpu" 或 "cuda"
+    """
+    device_config = os.getenv("EMBEDDING_DEVICE", "cpu").lower().strip()
+
+    if device_config == "cpu":
+        return "cpu"
+
+    if device_config == "cuda":
+        if _check_cuda_available():
+            return "cuda"
+        else:
+            return "cpu"
+
+    if device_config == "auto":
+        if _check_cuda_available():
+            return "cuda"
+        else:
+            return "cpu"
+
+    return "cpu"
+
+
 class Config:
     """Vector Service 配置类
 
@@ -28,28 +63,27 @@ class Config:
         CHROMA_PERSIST_PATH: ChromaDB 数据持久化路径
         CHROMA_COLLECTION_NAME: ChromaDB 集合名称
         EMBEDDING_MODEL_NAME: SentenceTransformer 模型名称
-        EMBEDDING_DEVICE: 模型运行设备 (cpu/cuda)
+        EMBEDDING_DEVICE: 模型运行设备 (cpu/cuda/auto)
+        EMBEDDING_DEVICE_ACTUAL: 实际运行的设备（自动选择）
         LOG_LEVEL: 日志级别 (DEBUG/INFO/WARNING/ERROR)
     """
 
-    # 服务配置
     SERVICE_PORT: int = int(os.getenv("SERVICE_PORT", "8001"))
     SERVICE_HOST: str = os.getenv("SERVICE_HOST", "0.0.0.0")
 
-    # ChromaDB 配置
     CHROMA_PERSIST_PATH: str = os.getenv("CHROMA_PERSIST_PATH", "./data/chroma_db")
     CHROMA_COLLECTION_NAME: str = os.getenv("CHROMA_COLLECTION_NAME", "docmind_chunks")
 
-    # Embedding 模型配置
     EMBEDDING_MODEL_NAME: str = os.getenv(
         "EMBEDDING_MODEL_NAME",
         "paraphrase-multilingual-MiniLM-L12-v2"
     )
-    EMBEDDING_DEVICE: str = os.getenv("EMBEDDING_DEVICE", "cpu")  # cpu 或 cuda
 
-    # 日志配置
+    EMBEDDING_DEVICE: str = os.getenv("EMBEDDING_DEVICE", "cpu")
+
+    EMBEDDING_DEVICE_ACTUAL: str = _get_device_from_config()
+
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
 
-# 全局配置实例
 config = Config()

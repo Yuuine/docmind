@@ -187,6 +187,8 @@ DELETE /api/v1/vectors/all
 
 ## 配置说明
 
+### 基础配置
+
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `SERVICE_PORT` | 8001 | 服务监听端口 |
@@ -194,8 +196,77 @@ DELETE /api/v1/vectors/all
 | `CHROMA_PERSIST_PATH` | ./data/chroma_db | ChromaDB 数据存储路径 |
 | `CHROMA_COLLECTION_NAME` | docmind_chunks | 向量集合名称 |
 | `EMBEDDING_MODEL_NAME` | paraphrase-multilingual-MiniLM-L12-v2 | SentenceTransformer 模型名称 |
-| `EMBEDDING_DEVICE` | cpu | 运行设备 (cpu/cuda) |
 | `LOG_LEVEL` | INFO | 日志级别 |
+
+### 设备配置 (EMBEDDING_DEVICE)
+
+| 配置值 | 说明 | 性能 |
+|--------|------|------|
+| `cpu` | 强制使用 CPU（默认） | 慢，适合轻度使用 |
+| `cuda` | 使用 NVIDIA GPU（需 GPU 环境） | 快，适合大量文档处理 |
+| `auto` | 自动检测，优先使用 GPU | 自动选择最佳设备 |
+
+#### GPU 环境要求
+
+使用 `cuda` 模式需要：
+
+1. **NVIDIA GPU 显卡**
+2. **安装 NVIDIA CUDA 驱动**
+3. **安装支持 CUDA 的 PyTorch 版本**：
+
+```bash
+# 安装 CUDA 版本的 PyTorch（以 CUDA 12.1 为例）
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+#### 性能参考
+
+以 `paraphrase-multilingual-MiniLM-L12-v2` 模型为例：
+
+- **CPU (Intel i7-12700)**: ~100-200 文本/秒
+- **GPU (NVIDIA RTX 3080)**: ~1000-2000 文本/秒
+
+#### 验证 CUDA 支持
+
+运行项目提供的 CUDA 检测脚本：
+
+```bash
+python check_cuda.py
+```
+
+预期输出（CUDA 可用时）：
+
+```
+PyTorch 版本: 2.7.1+cu118
+CUDA 是否可用: True
+PyTorch 编译时使用的 CUDA 版本: 11.8
+cuDNN 版本: 90100
+当前显卡名称: NVIDIA GeForce RTX 3060
+显卡数量: 1
+```
+
+#### 故障排除
+
+**配置了 cuda 但仍使用 CPU？**
+
+检查日志中是否有以下信息：
+
+```
+Device config: requested=cuda, available=cpu, actual=cpu
+CUDA was requested but not available, using CPU instead
+```
+
+这表示 CUDA 不可用，可能原因：
+
+1. 未安装 NVIDIA GPU 驱动
+2. PyTorch 是 CPU 版本，需要重新安装 CUDA 版本
+3. CUDA 版本不兼容
+
+**验证 PyTorch CUDA 支持：**
+
+```bash
+python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+```
 
 ## 依赖版本
 
@@ -211,8 +282,8 @@ DELETE /api/v1/vectors/all
 - tokenizers==0.20.0
 - numpy==1.26.4
 - scipy==1.13.0
-- torch==2.4.1
-- torchvision==0.19.1
+- torch==2.7.1+cu118
+- torchvision==0.22.1+cu118
 - protobuf>=3.20.3,<4.0.0
 - setuptools>=65.5.0
 
