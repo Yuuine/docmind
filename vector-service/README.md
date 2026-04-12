@@ -7,6 +7,7 @@
 - **文本向量化**: 使用 sentence-transformers 模型将文本转换为高维向量
 - **向量存储**: 基于 ChromaDB 的持久化向量数据库
 - **相似度检索**: 支持快速的向量相似度搜索
+- **混合检索**: 支持向量检索 + BM25 检索 + RRF 融合
 - **批量处理**: 支持批量文本嵌入和向量操作
 - **懒加载**: Embedding 模型仅在首次调用时加载，节省内存
 
@@ -54,6 +55,14 @@ CHROMA_COLLECTION_NAME=docmind_chunks
 EMBEDDING_MODEL_NAME=paraphrase-multilingual-MiniLM-L12-v2
 EMBEDDING_DEVICE=cpu
 
+# BM25 检索配置
+BM25_TOKENIZE=jieba
+BM25_K1=1.5
+BM25_B=0.75
+
+# 混合检索 RRF 参数
+HYBRID_RRF_K=60
+
 # 日志级别
 LOG_LEVEL=INFO
 ```
@@ -83,7 +92,8 @@ GET /health
   "version": "1.0.0",
   "components": {
     "chromadb": {"status": "healthy", "collection": "docmind_chunks"},
-    "embedding": {"status": "ready", "model": "paraphrase-multilingual-MiniLM-L12-v2", "dimension": 384}
+    "embedding": {"status": "ready", "model": "paraphrase-multilingual-MiniLM-L12-v2", "dimension": 384},
+    "bm25": {"status": "ready", "corpus_size": 1000, "k1": 1.5, "b": 0.75}
   }
 }
 ```
@@ -146,9 +156,43 @@ Content-Type: application/json
 
 {
   "query": "搜索关键词",
-  "topK": 5
+  "topK": 5,
+  "fileIds": ["file-001", "file-002"],
+  "hybrid": true
 }
 ```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `query` | String | 是 | - | 搜索关键词 |
+| `queryEmbedding` | List[float] | 否 | - | 直接传入向量进行搜索 |
+| `topK` | Integer | 否 | 10 | 返回前 K 条结果 |
+| `fileIds` | List[string] | 否 | - | 按文件 ID 过滤，限定搜索范围 |
+| `hybrid` | Boolean | 否 | false | 是否使用混合检索模式 |
+
+**混合检索（显式调用）：**
+
+```bash
+POST /api/v1/vectors/hybrid-search
+Content-Type: application/json
+
+{
+  "query": "搜索关键词",
+  "topK": 5,
+  "fileIds": ["file-001"],
+  "includeVectorScore": true,
+  "includeBm25Score": true
+}
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `query` | String | 是 | - | 搜索关键词 |
+| `queryEmbedding` | List[float] | 否 | - | 直接传入向量进行搜索 |
+| `topK` | Integer | 否 | 5 | 返回前 K 条结果 |
+| `fileIds` | List[string] | 否 | - | 按文件 ID 过滤 |
+| `includeVectorScore` | Boolean | 否 | true | 是否包含向量检索分数 |
+| `includeBm25Score` | Boolean | 否 | true | 是否包含 BM25 检索分数 |
 
 **更新向量：**
 
@@ -268,6 +312,20 @@ CUDA was requested but not available, using CPU instead
 python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
 ```
 
+### BM25 检索配置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `BM25_TOKENIZE` | jieba | 分词模式：jieba / space |
+| `BM25_K1` | 1.5 | BM25 K1 参数 |
+| `BM25_B` | 0.75 | BM25 B 参数 |
+
+### 混合检索配置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `HYBRID_RRF_K` | 60 | RRF (Reciprocal Rank Fusion) 融合参数 |
+
 ## 依赖版本
 
 已验证兼容的依赖版本：
@@ -284,6 +342,7 @@ python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
 - scipy==1.13.0
 - torch==2.7.1+cu118
 - torchvision==0.22.1+cu118
+- jieba==0.42.1
 - protobuf>=3.20.3,<4.0.0
 - setuptools>=65.5.0
 
@@ -326,8 +385,10 @@ vector-service/
 ├── config.py            # 配置管理
 ├── chroma.py            # ChromaDB 客户端封装
 ├── embedding.py         # Embedding 服务封装
+├── bm25_index.py        # BM25 索引实现
 ├── requirements.txt     # Python 依赖清单
 ├── install.bat          # Windows 安装脚本
+├── check_cuda.py        # CUDA 检测脚本
 ├── README.md            # 项目文档
 └── data/                # ChromaDB 数据存储目录
     └── chroma_db/
