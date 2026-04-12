@@ -90,6 +90,7 @@ import { Icon } from '@/components/icons'
 import ModelForm from './ModelForm.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import type { AIModel } from '@/types'
+import { getAxiosErrorMessage } from '@/utils/axiosMessage'
 
 const props = defineProps<{
   modelValue: boolean
@@ -165,8 +166,8 @@ async function executeDeleteModel() {
   try {
     await modelStore.deleteModel(targetDeleteModel.value.id, userId)
     toastStore.success('模型已删除')
-  } catch (error: any) {
-    const message = error.response?.data?.message || '删除失败，请稍后重试'
+  } catch (error: unknown) {
+    const message = getAxiosErrorMessage(error, '删除失败，请稍后重试')
     toastStore.error(message)
   } finally {
     targetDeleteModel.value = null

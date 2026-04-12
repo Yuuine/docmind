@@ -1,5 +1,6 @@
 spring:
   config:
+    # RAG：提示词模板、历史子配置、检索 topK/重排等，见 classpath:rag-prompt.yml
     import: optional:classpath:rag-prompt.yml
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/docmind?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
@@ -21,10 +22,49 @@ logging:
     org.springframework.web: INFO
     org.flywaydb: INFO
 
+# 聊天 RAG 流水线线程池（阻塞 DB/检索/拼 prompt 在 rag- 线程上执行，见 ChatAsyncConfig）
 chat:
   rag:
     thread-pool:
       core-size: 4
       max-size: 8
       queue-capacity: 200
+      keep-alive-seconds: 60
+
+docmind:
+  storage:
+    local:
+      base-path: ./data/storage
+  document:
+    upload:
+      max-file-size: 104857600
+    parser:
+      chunking-strategy: SENTENCE
+      max-segment-size: 1000
+      max-overlap-size: 200
+      min-chunk-content-length: 50
+      hybrid:
+        paragraph-threshold: 800
+        sentence-threshold: 300
+      regex:
+        pattern: "\n\n"
+  embedding:
+    type: python
+    python:
+      url: http://localhost:8001
+      connect-timeout: 10s
+      read-timeout: 30s
+  vectorstore:
+    python:
+      url: http://localhost:8001
+      connect-timeout: 10s
+      read-timeout: 30s
+      hybrid-enabled: true
+
+audit:
+  log:
+    thread-pool:
+      core-size: 4
+      max-size: 10
+      queue-capacity: 500
       keep-alive-seconds: 60

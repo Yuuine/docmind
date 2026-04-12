@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { modelsApi } from '@/api'
+import { modelApi } from '@/api'
 import type { AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
 
 export const useModelsStore = defineStore('models', () => {
@@ -14,7 +14,7 @@ export const useModelsStore = defineStore('models', () => {
   const loadModels = async (userId: number) => {
     isLoading.value = true
     try {
-      const data = await modelsApi.getModels(userId)
+      const data = await modelApi.getModels(userId)
       models.value = data || []
     } catch (error) {
       console.error('Load models failed:', error)
@@ -27,7 +27,7 @@ export const useModelsStore = defineStore('models', () => {
     if (!userId) return
     isLoading.value = true
     try {
-      await modelsApi.createModel(data, userId)
+      await modelApi.createModel(data, userId)
       await loadModels(userId)
     } catch (error) {
       console.error('Create model failed:', error)
@@ -40,7 +40,7 @@ export const useModelsStore = defineStore('models', () => {
     if (!userId) return
     isLoading.value = true
     try {
-      await modelsApi.updateModel(id, data, userId)
+      await modelApi.updateModel(id, data, userId)
       await loadModels(userId)
     } catch (error) {
       console.error('Update model failed:', error)
@@ -53,7 +53,7 @@ export const useModelsStore = defineStore('models', () => {
     if (!userId) return
     isLoading.value = true
     try {
-      await modelsApi.deleteModel(id, userId)
+      await modelApi.deleteModel(id, userId)
       await loadModels(userId)
     } catch (error) {
       console.error('Delete model failed:', error)
@@ -66,7 +66,7 @@ export const useModelsStore = defineStore('models', () => {
     if (!userId) return
     isLoading.value = true
     try {
-      await modelsApi.activateModel(id, userId)
+      await modelApi.activateModel(id, userId)
       await loadModels(userId)
     } catch (error) {
       console.error('Activate model failed:', error)

@@ -1,4 +1,4 @@
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   code: number
   message: string
   data: T
@@ -10,6 +10,14 @@ export interface PageResult<T> {
   total: number
   page: number
   size: number
+}
+
+export interface PageResponse<T> {
+  records: T[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
 }
 
 export interface User {
@@ -52,11 +60,9 @@ export interface ChatMessage {
   sessionId: number
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
   content: string
-  retrievedDocs?: any
+  retrievedDocs?: unknown
   createdAt: string
 }
-
-export type ModelProviderType = 'DEEPSEEK' | 'OPENAI' | 'MOONSHOT' | 'QWEN' | 'CUSTOM'
 
 export interface AIModel {
   id: number
@@ -66,8 +72,7 @@ export interface AIModel {
   modelName: string
   maxTokens: number
   temperature: number
-  providerType?: ModelProviderType
-  extraConfig?: Record<string, any>
+  extraConfig?: string
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -80,8 +85,7 @@ export interface AIModelCreateRequest {
   modelName: string
   maxTokens?: number
   temperature?: number
-  providerType?: ModelProviderType
-  extraConfig?: Record<string, any>
+  extraConfig?: string
 }
 
 export interface AIModelUpdateRequest {
@@ -91,6 +95,21 @@ export interface AIModelUpdateRequest {
   modelName?: string
   maxTokens?: number
   temperature?: number
-  providerType?: ModelProviderType
-  extraConfig?: Record<string, any>
+  extraConfig?: string
+}
+
+export interface DocumentStats {
+  chunkCount: number
+  totalCharCount: number
+  avgChunkSize: number
+}
+
+export interface DocumentChunkInfo {
+  id: number
+  chunkId: string
+  chunkIndex: number
+  contentPreview: string
+  content?: string
+  charCount: number
+  createdAt: string
 }

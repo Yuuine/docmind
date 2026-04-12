@@ -33,7 +33,6 @@ public class UserController {
     @Audited(
             action = AuditAction.USER_LOGIN,
             resourceType = "User",
-            resourceIdParam = "request",
             describe = "用户登录",
             sensitiveParams = {"password"}
     )

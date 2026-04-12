@@ -4,18 +4,21 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.reactive.function.client.WebClient;
 import yuuine.docmind.common.exception.BusinessException;
 import yuuine.docmind.common.exception.ErrorCode;
-import yuuine.docmind.core.model.dto.AIModelCreateRequest;
-import yuuine.docmind.core.model.dto.AIModelResponse;
-import yuuine.docmind.core.model.dto.AIModelUpdateRequest;
+import yuuine.docmind.core.model.dto.*;
 import yuuine.docmind.core.model.entity.AIModel;
 import yuuine.docmind.core.model.repository.AIModelRepository;
 import yuuine.docmind.core.model.service.ModelService;
 
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -47,7 +50,6 @@ public class ModelServiceImpl implements ModelService {
                 .modelName(request.getModelName())
                 .maxTokens(request.getMaxTokens())
                 .temperature(request.getTemperature())
-                .providerType(request.getProviderType())
                 .extraConfig(request.getExtraConfig())
                 .isActive(true)
                 .build();
@@ -64,6 +66,25 @@ public class ModelServiceImpl implements ModelService {
         }
         if (!model.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改此模型");
+        }
+
+        // 测试连接：如果有配置变更，使用新配置测试；否则用现有配置测试
+        String apiKeyToTest = StringUtils.hasText(request.getApiKey())
+            ? request.getApiKey()
+            : model.getApiKey();
+        String baseUrlToTest = StringUtils.hasText(request.getBaseUrl())
+            ? request.getBaseUrl()
+            : model.getBaseUrl();
+        String modelNameToTest = StringUtils.hasText(request.getModelName())
+            ? request.getModelName()
+            : model.getModelName();
+
+        if (StringUtils.hasText(apiKeyToTest)) {
+            testConnection(ModelTestConnectionRequest.builder()
+                .baseUrl(baseUrlToTest)
+                .apiKey(apiKeyToTest)
+                .modelName(modelNameToTest)
+                .build());
         }
 
         if (StringUtils.hasText(request.getName())) {
@@ -84,12 +105,7 @@ public class ModelServiceImpl implements ModelService {
         if (request.getTemperature() != null) {
             model.setTemperature(request.getTemperature());
         }
-        if (StringUtils.hasText(request.getProviderType())) {
-            model.setProviderType(request.getProviderType());
-        }
-        if (request.getExtraConfig() != null) {
-            model.setExtraConfig(request.getExtraConfig());
-        }
+        model.setExtraConfig(request.getExtraConfig());
 
         aiModelRepository.updateById(model);
         return toModelResponse(model);
@@ -102,7 +118,7 @@ public class ModelServiceImpl implements ModelService {
             throw new BusinessException(ErrorCode.MODEL_NOT_FOUND);
         }
         if (!model.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权删除此模型");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权修改此模型");
         }
 
         aiModelRepository.deleteById(id);
@@ -124,6 +140,38 @@ public class ModelServiceImpl implements ModelService {
         aiModelRepository.updateById(model);
     }
 
+    @Override
+    public void testConnection(ModelTestConnectionRequest request) {
+        String apiUrl = request.getBaseUrl().replaceAll("/$", "") + "/chat/completions";
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", request.getModelName());
+        requestBody.put("messages", List.of(Map.of("role", "user", "content", "Hi")));
+        requestBody.put("max_tokens", 10);
+        requestBody.put("stream", false);
+
+        WebClient webClient = WebClient.builder()
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
+                .build();
+
+        try {
+            webClient.post()
+                    .uri(apiUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Authorization", "Bearer " + request.getApiKey())
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(10))
+                    .block();
+
+            log.info("模型连接测试成功, model={}", request.getModelName());
+        } catch (Exception e) {
+            log.error("模型连接测试失败, model={}, error={}", request.getModelName(), e.getMessage());
+            throw new BusinessException(ErrorCode.MODEL_CONNECTION_FAILED, "连接失败: " + e.getMessage());
+        }
+    }
+
     private void deactivateAllModels(Long userId) {
         LambdaUpdateWrapper<AIModel> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(AIModel::getUserId, userId)
@@ -140,7 +188,6 @@ public class ModelServiceImpl implements ModelService {
                 .maxTokens(model.getMaxTokens())
                 .temperature(model.getTemperature())
                 .isActive(model.getIsActive())
-                .providerType(model.getProviderType())
                 .extraConfig(model.getExtraConfig())
                 .createdAt(model.getCreatedAt())
                 .updatedAt(model.getUpdatedAt())

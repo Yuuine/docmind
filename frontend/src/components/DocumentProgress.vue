@@ -51,7 +51,7 @@ const props = withDefaults(defineProps<{
     errorMessage?: string
   }
   autoPoll?: boolean
-  refreshFn?: () => Promise<any>
+  refreshFn?: () => Promise<unknown>
 }>(), {
   autoPoll: true
 })

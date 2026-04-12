@@ -1,4 +1,6 @@
-# Compiled class files
+# ========================================
+# Java / Maven
+# ========================================
 *.class
 *.jar
 *.war
@@ -8,7 +10,6 @@
 *.tar.gz
 *.rar
 
-# Maven
 target/
 pom.xml.tag
 pom.xml.releaseBackup
@@ -19,46 +20,156 @@ dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
 
-# IDE
+# ========================================
+# IDE / Editor
+# ========================================
 .idea/
 *.iws
 *.iml
 *.ipr
 .vscode/
+!.vscode/extensions.json
 *.swp
 *.swo
 *~
+out/
 
-# Node.js
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.sts4-cache
+bin/
+
+# ========================================
+# Node.js / Frontend
+# ========================================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-dist/
 dist-ssr/
 *.local
 
-# Logs
+frontend/dist/
+frontend/.vite/
+
+coverage/
+.nyc_output
+.eslintcache
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.vscode-test
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ========================================
+# Python / Vector Service
+# ========================================
+
+vector-service/venv/
+vector-service/.venv/
+vector-service/venv_test/
+venv/
+.venv/
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+vector-service/__pycache__/
+vector-service/*.pyc
+
+vector-service/data/
+vector-service/*.egg-info/
+vector-service/dist/
+vector-service/build/
+
+.pytest_cache/
+.coverage
+*.cov
+
+# ========================================
+# Environment & Secrets
+# ========================================
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ========================================
+# Logs & Local Data
+# ========================================
 logs/
 *.log
+local-docs/
+*.log.*
 
+# ========================================
 # OS
+# ========================================
 .DS_Store
 Thumbs.db
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 
+# ========================================
 # Application
+# ========================================
 data/
-*.env
-!*.env.example
+storage/
+uploads/
+temp/
+tmp/
+.gradle/
+application-local.yml
+application-dev.yml
+application-prod.yml
+*.pid
+*.seed
+*.pid.lock
 
-### .trae ###
+*.ctxt
+.mtj.tmp/
+hs_err_pid*
+replay_pid*
+
+# ========================================
+# AI Assistant Tools
+# ========================================
 .trae/
+.cursor/
+.agent/
 
-### demo ###
+# ========================================
+# Demo & Temporary
+# ========================================
 demo/
-
-### local-docs ###
-local-docs/

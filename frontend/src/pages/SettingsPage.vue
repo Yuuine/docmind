@@ -42,8 +42,18 @@
 
     <div class="card">
       <h2 class="card-title">账号</h2>
-      <button @click="handleLogout" class="logout-btn">退出登录</button>
+      <button @click="showLogoutConfirm = true" class="logout-btn">退出登录</button>
     </div>
+
+    <ConfirmModal
+      v-model="showLogoutConfirm"
+      title="退出登录"
+      message="确定要退出当前账号吗？退出后需要重新登录才能继续使用。"
+      confirm-text="确定退出"
+      cancel-text="取消"
+      :is-destructive="true"
+      @confirm="handleLogout"
+    />
   </div>
 </template>
 
@@ -53,6 +63,8 @@ import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
 import { userApi } from '@/api'
 import { Icon } from '@/components/icons'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import { getAxiosErrorMessage } from '@/utils/axiosMessage'
 
 const userStore = useUserStore()
 const toastStore = useToastStore()
@@ -62,6 +74,7 @@ const form = reactive({
   phone: ''
 })
 const isSaving = ref(false)
+const showLogoutConfirm = ref(false)
 
 onMounted(async () => {
   await loadProfile()
@@ -85,8 +98,8 @@ async function handleSave() {
       phone: form.phone || undefined
     }, userStore.user?.id)
     toastStore.success('资料更新成功')
-  } catch (err: any) {
-    const msg = err.response?.data?.message || '保存失败'
+  } catch (err: unknown) {
+    const msg = getAxiosErrorMessage(err, '保存失败')
     toastStore.error(msg)
   } finally {
     isSaving.value = false

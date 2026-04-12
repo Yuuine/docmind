@@ -24,13 +24,16 @@ public class AuditLogAsyncConfig {
     @Value("${audit.log.thread-pool.queue-capacity:500}")
     private int queueCapacity;
 
+    @Value("${audit.log.thread-pool.keep-alive-seconds:60}")
+    private int keepAliveSeconds;
+
     @Bean(name = "auditLogExecutor")
     public Executor auditLogExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(corePoolSize);
         executor.setMaxPoolSize(maxPoolSize);
         executor.setQueueCapacity(queueCapacity);
-        executor.setKeepAliveSeconds(60);
+        executor.setKeepAliveSeconds(keepAliveSeconds);
         executor.setThreadNamePrefix("audit-log-");
         executor.setRejectedExecutionHandler((r, e) -> {
             log.error("Audit log task rejected, thread pool exhausted. Pending tasks: {}, Active count: {}",

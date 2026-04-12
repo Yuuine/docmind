@@ -116,7 +116,7 @@ public class AuditDataCollector {
             return null;
         }
         String userIdHeader = request.getHeader("X-User-Id");
-        if (userIdHeader != null) {
+        if (userIdHeader != null && !userIdHeader.isBlank()) {
             try {
                 return Long.parseLong(userIdHeader);
             } catch (NumberFormatException ignored) {
@@ -124,7 +124,7 @@ public class AuditDataCollector {
         }
 
         Principal principal = request.getUserPrincipal();
-        if (principal != null) {
+        if (principal != null && principal.getName() != null) {
             String name = principal.getName();
             try {
                 return Long.parseLong(name);

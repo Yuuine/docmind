@@ -42,8 +42,11 @@ export const IconPaths = {
 
   // 箭头右
   arrowRight: `
-    <line x1="5" y1="12" x2="19" y2="12"/>
-    <polyline points="12 5 19 12 12 19"/>
+    <path d="M16.1716 10.9999L10.8076 5.63589L12.2218 4.22168L20 11.9999L12.2218 19.778L10.8076 18.3638L16.1716 12.9999H4V10.9999H16.1716Z" fill="currentColor"/>
+  `,
+  // 箭头左
+  arrowLeft: `
+    <path d="M7.82843 10.9999H20V12.9999H7.82843L13.1924 18.3638L11.7782 19.778L4 11.9999L11.7782 4.22168L13.1924 5.63589L7.82843 10.9999Z" fill="currentColor"/>
   `,
 
   // 加号
@@ -190,11 +193,11 @@ export const IconPaths = {
     <line x1="12" y1="8" x2="12.01" y2="8"/>
   `,
 
-  // 警告
+  // 警告（细线条三角形 + 感叹号）
   warning: `
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/>
-    <line x1="12" y1="17" x2="12.01" y2="17"/>
+    <path d="M12.8659 3.00017L22.3922 19.5002C22.6684 19.9785 22.5045 20.5901 22.0262 20.8662C21.8742 20.954 21.7017 21.0002 21.5262 21.0002H2.47363C1.92135 21.0002 1.47363 20.5525 1.47363 20.0002C1.47363 19.8246 1.51984 19.6522 1.60761 19.5002L11.1339 3.00017C11.41 2.52187 12.0216 2.358 12.4999 2.63414C12.6519 2.72191 12.7782 2.84815 12.8659 3.00017Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="12.01" y1="16.5" x2="11.99" y2="16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
   `,
 
   // 错误/失败
@@ -970,6 +973,21 @@ export const IconPaths = {
   arrowDown: `
     <line x1="12" y1="5" x2="12" y2="19"/>
     <polyline points="19 12 12 19 5 12"/>
+  `,
+
+  // Chevron 右
+  chevronRight: `
+    <polyline points="9 18 15 12 9 6"/>
+  `,
+
+  // Chevron 下
+  chevronDown: `
+    <polyline points="6 9 12 15 18 9"/>
+  `,
+
+  // Chevron 上
+  chevronUp: `
+    <polyline points="18 15 12 9 6 15"/>
   `
 } as const
 

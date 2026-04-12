@@ -24,7 +24,7 @@ public class ChatController {
 
     private final ChatService chatService;
 
-    @Audited(action = AuditAction.CHAT_SESSION_CREATE, resourceType = "ChatSession", resourceIdParam = "userId", describe = "创建聊天会话")
+    @Audited(action = AuditAction.CHAT_SESSION_CREATE, resourceType = "ChatSession", describe = "创建聊天会话")
     @PostMapping("/sessions")
     public Result<ChatSessionResponse> createSession(@RequestBody ChatSessionCreateRequest request,
                                                      @RequestParam Long userId) {
@@ -49,7 +49,7 @@ public class ChatController {
         return Result.success(chatService.getSessionMessages(id, userId));
     }
 
-    @Audited(action = AuditAction.CHAT_MESSAGE_SEND, resourceType = "ChatMessage", resourceIdParam = "id", describe = "发送聊天消息")
+    @Audited(action = AuditAction.CHAT_MESSAGE_SEND, resourceType = "ChatMessage", resourceIdFromPath = "id", describe = "发送聊天消息")
     @PostMapping("/sessions/{id}/messages")
     public Result<ChatMessageResponse> sendMessage(@PathVariable Long id,
                                                    @RequestBody ChatMessageRequest request,
@@ -61,14 +61,16 @@ public class ChatController {
     @GetMapping(value = "/sessions/{id}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> sendMessageStream(@PathVariable Long id,
                                                         @RequestParam String content,
-                                                        @RequestParam Long userId) {
+                                                        @RequestParam Long userId,
+                                                        @RequestParam(required = false) Boolean ragEnabled) {
         ChatMessageRequest request = new ChatMessageRequest();
         request.setSessionId(id);
         request.setContent(content);
+        request.setRagEnabled(ragEnabled);
         return chatService.sendMessageStream(request, userId);
     }
 
-    @Audited(action = AuditAction.CHAT_SESSION_DELETE, resourceType = "ChatSession", resourceIdParam = "id", describe = "删除聊天会话")
+    @Audited(action = AuditAction.CHAT_SESSION_DELETE, resourceType = "ChatSession", resourceIdFromPath = "id", describe = "删除聊天会话")
     @DeleteMapping("/sessions/{id}")
     public Result<Void> deleteSession(@PathVariable Long id, @RequestParam Long userId) {
         chatService.deleteSession(id, userId);

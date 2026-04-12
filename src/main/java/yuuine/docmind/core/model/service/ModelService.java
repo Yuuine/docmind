@@ -3,6 +3,7 @@ package yuuine.docmind.core.model.service;
 import yuuine.docmind.core.model.dto.AIModelCreateRequest;
 import yuuine.docmind.core.model.dto.AIModelResponse;
 import yuuine.docmind.core.model.dto.AIModelUpdateRequest;
+import yuuine.docmind.core.model.dto.ModelTestConnectionRequest;
 
 import java.util.List;
 
@@ -16,4 +17,6 @@ public interface ModelService {
     void deleteModel(Long id, Long userId);
 
     void activateModel(Long id, Long userId);
+
+    void testConnection(ModelTestConnectionRequest request);
 }

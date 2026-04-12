@@ -9,7 +9,6 @@
     </template>
     <template v-else>
       <div ref="contentRef" v-html="renderedContent" class="markdown-content"></div>
-      <span v-if="isStreaming && content.trim()" class="typing-cursor"></span>
     </template>
   </div>
 </template>
@@ -17,7 +16,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useElementWidth } from '@/composables/useElementWidth'
-import { measureMarkdownRoughHeight } from '@/utils/pretextLayout'
+import { measureMarkdownRoughHeight, CHAT_LINE_HEIGHT_PX } from '@/utils/pretextLayout'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
@@ -100,10 +99,17 @@ const props = defineProps<Props>()
 const rootRef = ref<HTMLElement | null>(null)
 const contentRef = ref<HTMLElement | null>(null)
 const contentWidthPx = useElementWidth(rootRef)
-
+const renderedContent = ref('')
 const streamingMinHeightPx = ref(0)
 let roughHeightTimer: ReturnType<typeof setTimeout> | null = null
 
+/**
+ * 使用 Pretext 快速估算 Markdown 高度
+ * - 纯算术计算，不触发 DOM 重排/重绘
+ * - 考虑标题、代码块、列表等额外高度
+ * - 只增不减，避免高度回缩导致闪烁
+ * - 配合 useStreamBuffer 的 rAF 节奏，无需额外延迟
+ */
 function scheduleStreamingRoughHeight() {
   if (roughHeightTimer) {
     clearTimeout(roughHeightTimer)
@@ -113,15 +119,13 @@ function scheduleStreamingRoughHeight() {
     streamingMinHeightPx.value = 0
     return
   }
-  roughHeightTimer = setTimeout(() => {
-    roughHeightTimer = null
-    if (!props.isStreaming || !props.content.trim()) return
-    const cap = typeof window !== 'undefined' ? window.innerHeight * 0.92 : 1e6
-    const h = measureMarkdownRoughHeight(props.content, contentWidthPx.value)
-    const next = Math.min(Math.ceil(h), cap)
-    // 单调递增，避免 strip/换行估算波动导致 min-height 忽大忽小
-    streamingMinHeightPx.value = Math.max(streamingMinHeightPx.value, next)
-  }, 48)
+
+  const cap = typeof window !== 'undefined' ? window.innerHeight * 0.92 : 1e6
+
+  const h = measureMarkdownRoughHeight(props.content, contentWidthPx.value)
+  const next = Math.min(Math.ceil(h), cap)
+
+  streamingMinHeightPx.value = Math.max(streamingMinHeightPx.value, next)
 }
 
 const rendererMinHeightStyle = computed(() => {
@@ -241,11 +245,19 @@ marked.setOptions({
   gfm: true
 })
 
-const renderedContent = computed(() => {
-  if (!props.content) return ''
+/**
+ * 更新渲染内容
+ * - 流式输出时：立即更新（useStreamBuffer 已通过 rAF 控制节奏）
+ * - 完整内容时：立即更新，保证及时性
+ */
+function updateRenderedContent(content: string) {
+  if (!content) {
+    renderedContent.value = ''
+    return
+  }
 
-  const html = marked.parse(props.content) as string
-  const sanitizedHtml = DOMPurify.sanitize(html, {
+  const html = marked.parse(content) as string
+  renderedContent.value = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'p', 'br', 'hr',
@@ -263,31 +275,15 @@ const renderedContent = computed(() => {
     ]
   })
 
-  return sanitizedHtml
-})
+  nextTick(() => bindCopyEvents())
+}
 
-watch(
-  () => props.content,
-  () => {
-    nextTick(() => {
-      bindCopyEvents()
-    })
-  },
-  { deep: true }
-)
-
-watch(isStreamingEmpty, empty => {
-  if (!empty) {
-    nextTick(() => {
-      bindCopyEvents()
-    })
-  }
-})
+watch(() => props.content, (newContent) => {
+  updateRenderedContent(newContent)
+}, { immediate: true })
 
 onMounted(() => {
-  nextTick(() => {
-    bindCopyEvents()
-  })
+  updateRenderedContent(props.content)
 })
 </script>
 
@@ -331,26 +327,6 @@ onMounted(() => {
   40% {
     transform: translateY(-4px);
     opacity: 1;
-  }
-}
-
-.typing-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  background: var(--text-primary);
-  animation: cursor-blink 0.8s step-end infinite;
-  margin-left: 2px;
-  vertical-align: text-bottom;
-}
-
-@keyframes cursor-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
   }
 }
 </style>
@@ -613,7 +589,7 @@ onMounted(() => {
   background: transparent !important;
   padding: 0 !important;
   border-radius: 0 !important;
-  font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
+  font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Monaco, monospace;
   font-size: var(--code-font-size, 12px);
   color: var(--code-block-fg);
   line-height: var(--code-line-height, 1.5);

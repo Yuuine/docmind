@@ -21,7 +21,9 @@
     </div>
 
     <div class="form-group">
-      <label>API 密钥 <span class="required">*</span></label>
+      <label>API 密钥 <span v-if="mode === 'create'" class="required">*</span>
+        <span v-else class="optional">(选填，保持不变)</span>
+      </label>
       <input
         v-model="formData.apiKey"
         type="password"
@@ -63,47 +65,32 @@
       </div>
     </div>
 
-    <div class="advanced-config">
-      <div class="advanced-config-header" @click="showAdvancedConfig = !showAdvancedConfig">
-        <span>高级配置</span>
-        <span class="advanced-chevron" :class="{ expanded: showAdvancedConfig }">▶</span>
+    <div class="advanced-settings">
+      <button
+        type="button"
+        class="advanced-toggle"
+        @click="showAdvanced = !showAdvanced"
+      >
+        <span class="advanced-icon" :class="{ 'is-open': showAdvanced }">▶</span>
+        <span>高级设置</span>
+        <span v-if="formData.extraConfig.trim()" class="advanced-badge">已配置</span>
+      </button>
+      
+      <div v-show="showAdvanced" class="advanced-content">
+        <JsonEditor
+          v-model="formData.extraConfig"
+          :model-name="formData.modelName"
+          :temperature="formData.temperature"
+          :max-tokens="formData.maxTokens"
+          ref="jsonEditorRef"
+        />
       </div>
-      <transition name="accordion">
-        <div v-if="showAdvancedConfig" class="advanced-config-body">
-          <div class="form-group">
-            <label>提供商类型</label>
-            <select v-model="formData.providerType">
-              <option value="">自定义</option>
-              <option value="DEEPSEEK">DeepSeek</option>
-              <option value="OPENAI">OpenAI</option>
-              <option value="MOONSHOT">Moonshot AI (Kimi)</option>
-              <option value="QWEN">通义千问</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>扩展配置 (JSON)</label>
-            <AutoResizeTextarea
-              v-model="formData.extraConfig"
-              placeholder='{"thinking": {"type": "enabled"}}'
-              :min-rows="3"
-              :max-rows="10"
-              enter-behavior="newline"
-              class="config-json-editor"
-            />
-          </div>
-          <div class="quick-config-buttons">
-            <button type="button" class="quick-btn" @click="applyQuickConfig('thinking')">+ 思考模式</button>
-            <button type="button" class="quick-btn" @click="applyQuickConfig('usage')">+ 返回 Usage</button>
-            <button type="button" class="quick-btn" @click="applyQuickConfig('filter')">+ 过滤思考内容</button>
-          </div>
-        </div>
-      </transition>
     </div>
 
     <div class="form-actions">
       <button type="button" class="btn-cancel" @click="$emit('cancel')">取消</button>
-      <button type="submit" class="btn-submit" :disabled="isSubmitting">
-        {{ isSubmitting ? '保存中...' : '保存模型' }}
+      <button type="submit" class="btn-submit" :disabled="isSubmitting || isTesting">
+        {{ isTesting ? '测试连接中...' : (isSubmitting ? '保存中...' : '保存模型') }}
       </button>
     </div>
   </form>
@@ -115,7 +102,9 @@ import { useModelsStore } from '@/stores/models'
 import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
 import type { AIModel, AIModelCreateRequest, AIModelUpdateRequest } from '@/types'
-import { AutoResizeTextarea } from '@/components'
+import { getAxiosErrorMessage } from '@/utils/axiosMessage'
+import { modelApi } from '@/api'
+import JsonEditor from '@/components/JsonEditor.vue'
 
 const props = defineProps<{
   model: AIModel | null
@@ -131,7 +120,7 @@ const modelStore = useModelsStore()
 const toastStore = useToastStore()
 const userStore = useUserStore()
 const isSubmitting = ref(false)
-const showAdvancedConfig = ref(false)
+const isTesting = ref(false)
 
 const formData = reactive({
   name: '',
@@ -140,9 +129,11 @@ const formData = reactive({
   modelName: '',
   maxTokens: 4096,
   temperature: 0.7,
-  providerType: '',
   extraConfig: ''
 })
+
+const jsonEditorRef = ref<InstanceType<typeof JsonEditor>>()
+const showAdvanced = ref(false)
 
 const errors = reactive<Record<string, string>>({
   name: '',
@@ -157,14 +148,15 @@ watch(
     if (props.mode === 'edit' && val) {
       formData.name = val.name
       formData.baseUrl = val.baseUrl
-      formData.apiKey = val.apiKey
+      formData.apiKey = ''
       formData.modelName = val.modelName
       formData.maxTokens = val.maxTokens || 4096
       formData.temperature = val.temperature ?? 0.7
-      formData.providerType = val.providerType || ''
-      formData.extraConfig = val.extraConfig ? (typeof val.extraConfig === 'object' ? JSON.stringify(val.extraConfig, null, 2) : val.extraConfig) : ''
+      formData.extraConfig = val.extraConfig || ''
+      showAdvanced.value = !!val.extraConfig?.trim()
     } else {
       resetForm()
+      showAdvanced.value = false
     }
   },
   { immediate: true }
@@ -177,37 +169,10 @@ function resetForm() {
   formData.modelName = ''
   formData.maxTokens = 4096
   formData.temperature = 0.7
-  formData.providerType = ''
   formData.extraConfig = ''
-  showAdvancedConfig.value = false
   Object.keys(errors).forEach((key) => {
     errors[key] = ''
   })
-}
-
-function applyQuickConfig(type: string) {
-  let base: Record<string, any> = {}
-  try {
-    if (formData.extraConfig.trim()) {
-      base = JSON.parse(formData.extraConfig)
-    }
-  } catch { /* ignore */ }
-
-  switch (type) {
-    case 'thinking':
-      base.thinking = { type: 'enabled' }
-      break
-    case 'usage':
-      base.streamOptions = { includeUsage: true }
-      break
-    case 'filter':
-      base.filterReasoningContent = true
-      break
-  }
-  formData.extraConfig = JSON.stringify(base, null, 2)
-  if (!showAdvancedConfig.value) {
-    showAdvancedConfig.value = true
-  }
 }
 
 function validate(): boolean {
@@ -226,7 +191,7 @@ function validate(): boolean {
     valid = false
   }
 
-  if (!formData.apiKey.trim()) {
+  if (props.mode === 'create' && !formData.apiKey.trim()) {
     errors.apiKey = '请输入 API 密钥'
     valid = false
   }
@@ -236,11 +201,40 @@ function validate(): boolean {
     valid = false
   }
 
-  if (!valid) {
+  if (formData.extraConfig.trim()) {
+    try {
+      JSON.parse(formData.extraConfig)
+    } catch {
+      toastStore.error('自定义配置JSON格式错误')
+      valid = false
+    }
+  }
+
+  if (!valid && Object.values(errors).some(e => e)) {
     toastStore.error('请填写所有必填项')
   }
 
   return valid
+}
+
+async function testConnection(): Promise<boolean> {
+  if (props.mode === 'edit' && !formData.apiKey.trim()) {
+    return true
+  }
+
+  isTesting.value = true
+  try {
+    await modelApi.testConnection({
+      baseUrl: formData.baseUrl.trim(),
+      apiKey: formData.apiKey.trim(),
+      modelName: formData.modelName.trim()
+    })
+    return true
+  } catch {
+    return false
+  } finally {
+    isTesting.value = false
+  }
 }
 
 async function handleSubmit() {
@@ -254,6 +248,14 @@ async function handleSubmit() {
 
   isSubmitting.value = true
   try {
+    const connected = await testConnection()
+    if (!connected) {
+      toastStore.error('连接失败')
+      return
+    }
+
+    const extraConfig = formData.extraConfig.trim()
+
     if (props.mode === 'create') {
       const data: AIModelCreateRequest = {
         name: formData.name.trim(),
@@ -262,8 +264,7 @@ async function handleSubmit() {
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
         temperature: formData.temperature,
-        providerType: formData.providerType.trim() || undefined,
-        extraConfig: formData.extraConfig.trim() || undefined
+        extraConfig
       }
       await modelStore.createModel(data, userId)
       toastStore.success('模型创建成功')
@@ -271,20 +272,19 @@ async function handleSubmit() {
       const data: AIModelUpdateRequest = {
         name: formData.name.trim(),
         baseUrl: formData.baseUrl.trim(),
-        apiKey: formData.apiKey.trim(),
+        apiKey: formData.apiKey.trim() || undefined,
         modelName: formData.modelName.trim(),
         maxTokens: formData.maxTokens,
         temperature: formData.temperature,
-        providerType: formData.providerType.trim() || undefined,
-        extraConfig: formData.extraConfig.trim() || undefined
+        extraConfig
       }
       await modelStore.updateModel(props.model!.id, data, userId)
       toastStore.success('模型更新成功')
     }
     emit('submit')
-  } catch (error: any) {
-    const message = error.response?.data?.message || `${props.mode === 'create' ? '创建' : '更新'}失败，请稍后重试`
-    toastStore.error(message)
+  } catch (error: unknown) {
+    const fallback = `${props.mode === 'create' ? '创建' : '更新'}失败，请稍后重试`
+    toastStore.error(getAxiosErrorMessage(error, fallback))
   } finally {
     isSubmitting.value = false
   }
@@ -321,6 +321,11 @@ async function handleSubmit() {
 
 .required {
   color: #d97706;
+}
+
+.optional {
+  color: #999;
+  font-weight: 400;
 }
 
 .form-group input {
@@ -400,114 +405,52 @@ async function handleSubmit() {
   cursor: not-allowed;
 }
 
-.advanced-config {
+.advanced-settings {
   border: 1px solid #e8e8e8;
   border-radius: 8px;
   overflow: hidden;
 }
 
-.advanced-config-header {
+.advanced-toggle {
+  width: 100%;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
+  gap: 8px;
+  background: #f8f9fa;
+  border: none;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: #555;
-  background: #fafafa;
-  user-select: none;
   transition: background 0.2s ease;
 }
 
-.advanced-config-header:hover {
-  background: #f5f5f5;
+.advanced-toggle:hover {
+  background: #f0f1f2;
 }
 
-.advanced-chevron {
+.advanced-icon {
   font-size: 10px;
-  color: #999;
   transition: transform 0.2s ease;
-  display: inline-block;
 }
 
-.advanced-chevron.expanded {
+.advanced-icon.is-open {
   transform: rotate(90deg);
 }
 
-.advanced-config-body {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border-top: 1px solid #e8e8e8;
+.advanced-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #16a34a;
+  background: #dcfce7;
+  border-radius: 12px;
 }
 
-.config-json-editor :deep(.textarea-inner) {
-  font-size: 13px;
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-}
-
-.form-group select {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1.5px solid #e8e8e8;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #fafafa;
-  color: #333;
-  outline: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-sizing: border-box;
-}
-
-.form-group select:focus {
-  border-color: var(--color-accent);
+.advanced-content {
+  padding: 16px;
   background: white;
-}
-
-.quick-config-buttons {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.quick-btn {
-  padding: 6px 12px;
-  border: 1.5px dashed #d0d0d0;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #666;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.quick-btn:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: var(--color-active-bg);
-}
-
-/* 折叠动画 */
-.accordion-enter-active,
-.accordion-leave-active {
-  transition: all 0.25s ease;
-  overflow: hidden;
-}
-
-.accordion-enter-from,
-.accordion-leave-to {
-  opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.accordion-enter-to,
-.accordion-leave-from {
-  opacity: 1;
-  max-height: 300px;
 }
 </style>
